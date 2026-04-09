@@ -1,7 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 import * as dotenv from 'dotenv';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -13,7 +16,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: { enableImplicitConversion: true },
+      transformOptions: { enableImplicitConversion: false },
     }),
   );
 
@@ -23,7 +26,13 @@ async function bootstrap() {
     .setVersion('1.0')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('doc', app, swaggerDocument);
+
+  const openApiYamlPath = path.join(process.cwd(), 'doc', 'api.yaml');
+  const openApiYamlText = fs.readFileSync(openApiYamlPath, 'utf8');
+  const openApiYamlDocument = parseYaml(openApiYamlText) as OpenAPIObject;
+
+  SwaggerModule.setup('doc-yaml', app, openApiYamlDocument);
+  SwaggerModule.setup('doc-code', app, swaggerDocument);
 
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port);
