@@ -1,16 +1,23 @@
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
+import {
+  DocumentBuilder,
+  SwaggerModule,
+  type OpenAPIObject,
+} from '@nestjs/swagger';
 import * as dotenv from 'dotenv';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { AppModule } from './app.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   dotenv.config();
   const app = await NestFactory.create(AppModule);
 
+  const adapterHost = app.get(HttpAdapterHost);
+  app.useGlobalInterceptors(new LoggingInterceptor(adapterHost));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
