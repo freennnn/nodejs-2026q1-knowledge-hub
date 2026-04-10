@@ -8,8 +8,12 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
+import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
+import { PaginatedResponse } from '@/common/types/paginated';
+import { maybePaginate } from '@/common/utils/paginate';
 import { Category } from '@/common/types/category';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -22,8 +26,11 @@ export class CategoryController {
 
   @ApiResponse({ status: 200, type: [Object] })
   @Get()
-  findAll(): Category[] {
-    return this.categoryService.findAll();
+  findAll(
+    @Query() query: PaginationQueryDto, // global Transform() will pass empty {} if query is missing, which satisfys PaginationQueryDto with 2 optional fields
+  ): Category[] | PaginatedResponse<Category> {
+    const categories = this.categoryService.findAll();
+    return maybePaginate(categories, query);
   }
 
   @ApiResponse({ status: 200, type: Object })

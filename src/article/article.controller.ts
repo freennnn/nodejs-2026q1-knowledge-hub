@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Article } from '@/common/types/article';
+import { PaginatedResponse } from '@/common/types/paginated';
+import { maybePaginate } from '@/common/utils/paginate';
 import { ArticleService } from './article.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { ListArticlesQueryDto } from './dto/list-articles.query.dto';
@@ -24,8 +26,11 @@ export class ArticleController {
 
   @ApiResponse({ status: 200, type: [Object] })
   @Get()
-  findAll(@Query() query: ListArticlesQueryDto): Article[] {
-    return this.articleService.findAll(query);
+  findAll(
+    @Query() query: ListArticlesQueryDto,
+  ): Article[] | PaginatedResponse<Article> {
+    const articles = this.articleService.findAll(query);
+    return maybePaginate(articles, query);
   }
 
   @ApiResponse({ status: 200, type: Object })

@@ -8,8 +8,12 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
+import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
+import { PaginatedResponse } from '@/common/types/paginated';
+import { maybePaginate } from '@/common/utils/paginate';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -22,8 +26,11 @@ export class UserController {
 
   @ApiResponse({ status: 200, type: [UserResponseDto] })
   @Get()
-  findAll(): UserResponseDto[] {
-    return this.userService.findAll();
+  findAll(
+    @Query() query: PaginationQueryDto,
+  ): UserResponseDto[] | PaginatedResponse<UserResponseDto> {
+    const users = this.userService.findAll();
+    return maybePaginate(users, query);
   }
 
   @ApiResponse({ status: 200, type: UserResponseDto })
