@@ -38,8 +38,8 @@ async function bootstrap() {
   const openApiYamlText = fs.readFileSync(openApiYamlPath, 'utf8');
   const openApiYamlDocument = parseYaml(openApiYamlText) as OpenAPIObject;
 
+  SwaggerModule.setup('doc', app, swaggerDocument);
   SwaggerModule.setup('doc-yaml', app, openApiYamlDocument);
-  SwaggerModule.setup('doc-code', app, swaggerDocument);
 
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port);
