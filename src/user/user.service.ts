@@ -48,10 +48,11 @@ export class UserService {
       throw new ForbiddenException('Old password is wrong');
     }
 
+    const nextUpdatedAt = Math.max(Date.now(), user.updatedAt + 1);
     const updated: User = {
       ...user,
       password: dto.newPassword,
-      updatedAt: Date.now(),
+      updatedAt: nextUpdatedAt,
     };
     this.store.users.set(id, updated);
     return this.toResponse(updated);

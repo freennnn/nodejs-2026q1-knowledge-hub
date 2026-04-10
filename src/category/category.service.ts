@@ -38,7 +38,11 @@ export class CategoryService {
       throw new NotFoundException(`Category with id "${id}" not found`);
     }
 
-    const updated: Category = { ...category, name: dto.name, description: dto.description };
+    const updated: Category = {
+      ...category,
+      name: dto.name,
+      description: dto.description,
+    };
     this.store.categories.set(id, updated);
     return updated;
   }

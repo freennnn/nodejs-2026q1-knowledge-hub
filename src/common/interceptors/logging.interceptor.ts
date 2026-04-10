@@ -43,9 +43,7 @@ export class LoggingInterceptor implements NestInterceptor {
       finalize(() => {
         const durationMs = Date.now() - startMs;
         const statusCode = readStatusCode(res);
-        this.logger.log(
-          `${method} ${url} -> ${statusCode} (${durationMs}ms)`,
-        );
+        this.logger.log(`${method} ${url} -> ${statusCode} (${durationMs}ms)`);
       }),
     );
   }

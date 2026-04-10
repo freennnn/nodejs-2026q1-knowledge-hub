@@ -9,4 +9,3 @@ import { CategoryService } from './category.service';
   providers: [CategoryService],
 })
 export class CategoryModule {}
-
