@@ -11,9 +11,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
-import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
-import { PaginatedResponse } from '@/common/types/paginated';
+import { PaginatedResponse } from '@/common/types/paginated-response';
 import { maybePaginate } from '@/common/utils/paginate';
+import { ListQueryDto } from '@/common/dto/list-query.dto';
+import { maybeSort } from '@/common/utils/sort';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UserResponseDto } from './dto/user-response.dto';
@@ -27,10 +28,17 @@ export class UserController {
   @ApiResponse({ status: 200, type: [UserResponseDto] })
   @Get()
   findAll(
-    @Query() query: PaginationQueryDto,
+    @Query() query: ListQueryDto,
   ): UserResponseDto[] | PaginatedResponse<UserResponseDto> {
     const users = this.userService.findAll();
-    return maybePaginate(users, query);
+    const sorted = maybeSort(users, query.sortBy, query.order, [
+      'id',
+      'login',
+      'role',
+      'createdAt',
+      'updatedAt',
+    ]);
+    return maybePaginate(sorted, query);
   }
 
   @ApiResponse({ status: 200, type: UserResponseDto })

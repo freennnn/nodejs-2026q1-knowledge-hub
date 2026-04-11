@@ -1,4 +1,4 @@
-import { PaginatedResponse } from '@/common/types/paginated';
+import { PaginatedResponse } from '@/common/types/paginated-response';
 import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
 
 export function paginate<T>(

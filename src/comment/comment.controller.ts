@@ -11,8 +11,9 @@ import {
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Comment } from '@/common/types/comment';
-import { PaginatedResponse } from '@/common/types/paginated';
+import { PaginatedResponse } from '@/common/types/paginated-response';
 import { maybePaginate } from '@/common/utils/paginate';
+import { maybeSort } from '@/common/utils/sort';
 import { CommentService } from './comment.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { ListCommentsQueryDto } from './dto/list-comments.query.dto';
@@ -28,7 +29,14 @@ export class CommentController {
     @Query() query: ListCommentsQueryDto,
   ): Comment[] | PaginatedResponse<Comment> {
     const comments = this.commentService.findAllByArticleId(query.articleId);
-    return maybePaginate(comments, query);
+    const sorted = maybeSort(comments, query.sortBy, query.order, [
+      'id',
+      'content',
+      'authorId',
+      'articleId',
+      'createdAt',
+    ]);
+    return maybePaginate(sorted, query);
   }
 
   @ApiResponse({ status: 200, type: Object })
