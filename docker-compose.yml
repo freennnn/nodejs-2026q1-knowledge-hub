@@ -26,6 +26,7 @@ services:
       - knowledge_hub_net
 
   app:
+    image: ${IMAGE_LOCAL_NAME}
     build:
       context: .
       dockerfile: Dockerfile
