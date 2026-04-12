@@ -28,7 +28,7 @@ export class CategoryController {
   @ApiResponse({ status: 200, type: [Object] })
   @Get()
   findAll(
-    @Query() query: ListQueryDto,
+    @Query() query: ListQueryDto, // global Transform() will pass empty {} if query is missing, which satisfys PaginationQueryDto with 2 optional fields
   ): Category[] | PaginatedResponse<Category> {
     const categories = this.categoryService.findAll();
     const sorted = maybeSort(categories, query.sortBy, query.order, [

@@ -29,7 +29,7 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
   && npm ci --omit=dev \
   && npm cache clean --force \
   && apk del .build-deps
-
+# copy from /app folder of build stage (completely different) to /app of prod stage
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/doc ./doc
 
