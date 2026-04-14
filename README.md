@@ -92,6 +92,10 @@ IMAGE_LOCAL_NAME=knowledge-hub:local
 IMAGE_HUB_NAME=freennnn/knowledge-hub:latest
 ```
 
+Docker Hub repository:
+
+- https://hub.docker.com/r/freennnn/knowledge-hub
+
 ## Testing
 
 After application running open new terminal and enter:
