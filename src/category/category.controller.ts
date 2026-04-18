@@ -27,10 +27,10 @@ export class CategoryController {
 
   @ApiResponse({ status: 200, type: [Object] })
   @Get()
-  findAll(
-    @Query() query: ListQueryDto,
-  ): Category[] | PaginatedResponse<Category> {
-    const categories = this.categoryService.findAll();
+  async findAll(
+    @Query() query: ListQueryDto, // global Transform() will pass empty {} if query is missing, which satisfys PaginationQueryDto with 2 optional fields
+  ): Promise<Category[] | PaginatedResponse<Category>> {
+    const categories = await this.categoryService.findAll();
     const sorted = maybeSort(categories, query.sortBy, query.order, [
       'id',
       'name',
@@ -41,31 +41,33 @@ export class CategoryController {
 
   @ApiResponse({ status: 200, type: Object })
   @Get(':id')
-  findOne(
+  async findOne(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Category {
+  ): Promise<Category> {
     return this.categoryService.findOne(id);
   }
 
   @ApiResponse({ status: 201, type: Object })
   @Post()
-  create(@Body() dto: CreateCategoryDto): Category {
+  async create(@Body() dto: CreateCategoryDto): Promise<Category> {
     return this.categoryService.create(dto);
   }
 
   @ApiResponse({ status: 200, type: Object })
   @Put(':id')
-  update(
+  async update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateCategoryDto,
-  ): Category {
+  ): Promise<Category> {
     return this.categoryService.update(id, dto);
   }
 
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): void {
+  async remove(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<void> {
     return this.categoryService.remove(id);
   }
 }
