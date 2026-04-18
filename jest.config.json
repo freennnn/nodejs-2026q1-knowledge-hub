@@ -2,6 +2,9 @@
   "moduleFileExtensions": ["ts", "js"],
   "rootDir": "test",
   "testEnvironment": "node",
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/../src/$1"
+  },
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   }
