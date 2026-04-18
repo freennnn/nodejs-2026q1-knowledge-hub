@@ -56,6 +56,69 @@ docker compose --profile debug up --build
 - Swagger: http://localhost:4000/doc
 - Adminer: http://localhost:8080 (debug profile only)
 
+## Prisma Database Workflow
+
+Typical dev flow (your setup):
+
+1. Start DB container:
+
+```
+docker compose up -d db
+```
+
+2. Ensure local `DATABASE_URL` uses `localhost:5432`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/knowledge_hub?schema=public
+```
+
+3. Run in repo:
+
+```
+npm run prisma:generate
+npm run prisma:migrate
+npm run prisma:seed
+```
+
+4. Start app:
+
+```
+npm run start:dev
+```
+
+If app runs inside Compose, then `DATABASE_URL` should use host `db` instead of `localhost`:
+
+```
+DATABASE_URL=postgresql://postgres:postgres@db:5432/knowledge_hub?schema=public
+```
+
+For production-like deployment, apply committed migrations with:
+
+```
+npx prisma migrate deploy
+```
+
+## Local Run + Tests (Quick Flow)
+
+1. Start PostgreSQL:
+
+```
+docker compose up -d db
+```
+
+2. Start app:
+
+```
+npm run start:dev
+```
+
+3. Run tests in another terminal:
+
+```
+npm run test
+npm run test:extra
+```
+
 ### Image security scan
 
 Build and tag image:
@@ -110,30 +173,6 @@ To run only one of all test suites
 
 ```
 npm run test -- <path to suite>
-```
-
-To run all test with authorization
-
-```
-npm run test:auth
-```
-
-To run only specific test suite with authorization
-
-```
-npm run test:auth -- <path to suite>
-```
-
-To run refresh token tests
-
-```
-npm run test:refresh
-```
-
-To run RBAC (role-based access control) tests
-
-```
-npm run test:rbac
 ```
 
 ### Auto-fix and format
