@@ -80,6 +80,8 @@ npm run prisma:migrate
 npm run prisma:seed
 ```
 
+This step is required on fresh install after DB startup, regardless of where the app runs (local Node process or app container).
+
 4. Start app:
 
 ```
@@ -106,13 +108,20 @@ npx prisma migrate deploy
 docker compose up -d db
 ```
 
-2. Start app:
+2. Apply DB migrations (and optional seed):
+
+```
+npx prisma migrate deploy
+npm run prisma:seed
+```
+
+3. Start app:
 
 ```
 npm run start:dev
 ```
 
-3. Run tests in another terminal:
+4. Run tests in another terminal:
 
 ```
 npm run test
