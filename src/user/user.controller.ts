@@ -27,10 +27,10 @@ export class UserController {
 
   @ApiResponse({ status: 200, type: [UserResponseDto] })
   @Get()
-  findAll(
+  async findAll(
     @Query() query: ListQueryDto,
-  ): UserResponseDto[] | PaginatedResponse<UserResponseDto> {
-    const users = this.userService.findAll();
+  ): Promise<UserResponseDto[] | PaginatedResponse<UserResponseDto>>{
+    const users = await this.userService.findAll();
     const sorted = maybeSort(users, query.sortBy, query.order, [
       'id',
       'login',
@@ -43,15 +43,15 @@ export class UserController {
 
   @ApiResponse({ status: 200, type: UserResponseDto })
   @Get(':id')
-  findOne(
+  async findOne(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): UserResponseDto {
+  ): Promise<UserResponseDto> {
     return this.userService.findOne(id);
   }
 
   @ApiResponse({ status: 201, type: UserResponseDto })
   @Post()
-  create(@Body() dto: CreateUserDto): UserResponseDto {
+  create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
     return this.userService.create(dto);
   }
 
@@ -60,14 +60,14 @@ export class UserController {
   updatePassword(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdatePasswordDto,
-  ): UserResponseDto {
+  ): Promise<UserResponseDto> {
     return this.userService.updatePassword(id, dto);
   }
 
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): void {
+  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> {
     return this.userService.remove(id);
   }
 }

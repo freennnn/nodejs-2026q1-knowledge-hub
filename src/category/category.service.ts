@@ -1,70 +1,66 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { Article } from '@/common/types/article';
 import { Category } from '@/common/types/category';
-import { InMemoryStore } from '@/persistence/in-memory/in-memory.store';
+import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly store: InMemoryStore) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Category[] {
-    return [...this.store.categories.values()];
+  async findAll(): Promise<Category[]> {
+    return this.prisma.category.findMany();
   }
 
-  findOne(id: string): Category {
-    const category = this.store.categories.get(id);
+  async findOne(id: string): Promise<Category> {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+    });
     if (!category) {
       throw new NotFoundException(`Category with id "${id}" not found`);
     }
     return category;
   }
 
-  create(dto: CreateCategoryDto): Category {
-    const category: Category = {
-      id: randomUUID(),
-      name: dto.name,
-      description: dto.description,
-    };
-    this.store.categories.set(category.id, category);
-    return category;
+  create(dto: CreateCategoryDto): Promise<Category> {
+    return this.prisma.category.create({
+      data: {
+        name: dto.name,
+        description: dto.description,
+      },
+    });
   }
 
-  update(id: string, dto: UpdateCategoryDto): Category {
-    const category = this.store.categories.get(id);
+  async update(id: string, dto: UpdateCategoryDto): Promise<Category> {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+    });
     if (!category) {
       throw new NotFoundException(`Category with id "${id}" not found`);
     }
 
-    const updated: Category = {
-      ...category,
-      name: dto.name,
-      description: dto.description,
-    };
-    this.store.categories.set(id, updated);
-    return updated;
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        description: dto.description,
+      },
+    });
   }
 
-  remove(id: string): void {
-    const category = this.store.categories.get(id);
+  // we return void here cause Controller sends success-  204 No Context, when body is empty
+  async remove(id: string): Promise<void> {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+    });
     if (!category) {
       throw new NotFoundException(`Category with id "${id}" not found`);
     }
 
-    // Cascade: null categoryId in Articles
-    for (const [articleId, article] of this.store.articles.entries()) {
-      if (article.categoryId === id) {
-        const updated: Article = {
-          ...article,
-          categoryId: null,
-          updatedAt: Date.now(),
-        };
-        this.store.articles.set(articleId, updated);
-      }
-    }
-
-    this.store.categories.delete(id);
+    // onDelete: SetNull is enforced by FK on Article.categoryId
+    // vs old iterating over allArticles and nullifying the deleted category manually
+    await this.prisma.category.delete({
+      where: { id },
+    });
   }
 }

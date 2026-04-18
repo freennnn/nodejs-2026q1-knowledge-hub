@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { InMemoryStore } from './in-memory/in-memory.store';
+import { PrismaService } from './prisma/prisma.service';
 
 @Module({
-  providers: [InMemoryStore],
-  exports: [InMemoryStore],
+  providers: [PrismaService],
+  exports: [PrismaService],
 })
 export class PersistenceModule {}

@@ -27,10 +27,10 @@ export class ArticleController {
 
   @ApiResponse({ status: 200, type: [Object] })
   @Get()
-  findAll(
+  async findAll(
     @Query() query: ListArticlesQueryDto,
-  ): Article[] | PaginatedResponse<Article> {
-    const articles = this.articleService.findAll(query);
+  ): Promise<Article[] | PaginatedResponse<Article>> {
+    const articles = await this.articleService.findAll(query);
     const sorted = maybeSort(articles, query.sortBy, query.order, [
       'id',
       'title',
@@ -45,31 +45,33 @@ export class ArticleController {
 
   @ApiResponse({ status: 200, type: Object })
   @Get(':id')
-  findOne(
+  async findOne(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Article {
+  ): Promise<Article> {
     return this.articleService.findOne(id);
   }
 
   @ApiResponse({ status: 201, type: Object })
   @Post()
-  create(@Body() dto: CreateArticleDto): Article {
+  async create(@Body() dto: CreateArticleDto): Promise<Article> {
     return this.articleService.create(dto);
   }
 
   @ApiResponse({ status: 200, type: Object })
   @Put(':id')
-  update(
+  async update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() dto: UpdateArticleDto,
-  ): Article {
+  ): Promise<Article> {
     return this.articleService.update(id, dto);
   }
 
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): void {
+  async remove(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): Promise<void> {
     return this.articleService.remove(id);
   }
 }
