@@ -29,24 +29,26 @@ export class CommentService {
   }
 
   async create(dto: CreateCommentDto): Promise<Comment> {
-    const articleExists = await this.prisma.article.findUnique({
-      where: { id: dto.articleId },
-      select: { id: true },
-    });
-    if (!articleExists) {
-      throw new UnprocessableEntityException(
-        `Article with id "${dto.articleId}" not found`,
-      );
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const articleExists = await tx.article.findUnique({
+        where: { id: dto.articleId },
+        select: { id: true },
+      });
+      if (!articleExists) {
+        throw new UnprocessableEntityException(
+          `Article with id "${dto.articleId}" not found`,
+        );
+      }
 
-    const created = await this.prisma.comment.create({
-      data: {
-        content: dto.content,
-        articleId: dto.articleId,
-        authorId: dto.authorId ?? null,
-      },
+      const created = await tx.comment.create({
+        data: {
+          content: dto.content,
+          articleId: dto.articleId,
+          authorId: dto.authorId ?? null,
+        },
+      });
+      return this.toResponse(created);
     });
-    return this.toResponse(created);
   }
 
   async remove(id: string): Promise<void> {

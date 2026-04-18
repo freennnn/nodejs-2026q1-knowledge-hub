@@ -66,13 +66,14 @@ export class UserService {
   }
 
   async remove(id: string): Promise<void> {
-    const user = await this.prisma.user.findUnique ({ where: {id}})
-
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
 
     if (!user) throw new NotFoundException(`User with id "${id}" not found`);
 
-    await this.prisma.user.delete ( { where: {id}})
-
+    // this.store.users.delete(id);
     // Cascade: null authorId in Articles
       // for (const [articleId, article] of this.store.articles.entries()) {
       //   if (article.authorId === id) {
@@ -92,7 +93,11 @@ export class UserService {
       //   }
       // }
 
-    // this.store.users.delete(id);
+
+    // Rely on DB-level onDelete rules from Prisma schema.
+    await this.prisma.user.delete({
+      where: { id },
+    });
   }
 
   private toResponse(user: PrismaUser): UserResponseDto {
