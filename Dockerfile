@@ -1,6 +1,7 @@
 FROM node:24-alpine AS build
 
 WORKDIR /app
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/knowledge_hub?schema=public
 
 COPY package.json package-lock.json ./
 
@@ -10,10 +11,12 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
   && apk del .build-deps
 
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
 COPY src ./src
 COPY doc ./doc
 
-RUN npm run build
+RUN npx prisma generate && npm run build
 
 FROM node:24-alpine AS production
 
@@ -32,6 +35,8 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
 # copy from /app folder of build stage (completely different) to /app of prod stage
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/doc ./doc
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 RUN chown -R node:node /app
 USER node
