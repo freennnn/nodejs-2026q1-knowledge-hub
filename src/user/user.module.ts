@@ -7,5 +7,6 @@ import { UserService } from './user.service';
   imports: [PersistenceModule],
   controllers: [UserController],
   providers: [UserService],
+  exports: [UserService],
 })
 export class UserModule {}
