@@ -19,9 +19,7 @@ export class SortQueryDto {
   sortBy?: string;
 
   @ApiPropertyOptional({ enum: SORT_ORDER_VALUES, default: SortOrder.ASC })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.toLowerCase() : value,
-  )
+  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase() : value))
   @IsIn(SORT_ORDER_VALUES)
   @IsOptional()
   order?: SortOrder;

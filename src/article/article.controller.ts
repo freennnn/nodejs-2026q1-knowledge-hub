@@ -45,9 +45,7 @@ export class ArticleController {
 
   @ApiResponse({ status: 200, type: Object })
   @Get(':id')
-  async findOne(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<Article> {
+  async findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<Article> {
     return this.articleService.findOne(id);
   }
 
@@ -69,9 +67,7 @@ export class ArticleController {
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  async remove(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<void> {
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> {
     return this.articleService.remove(id);
   }
 }

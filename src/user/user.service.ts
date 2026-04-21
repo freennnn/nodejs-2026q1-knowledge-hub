@@ -5,11 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { UserRole } from '@/common/enums/user-role.enum';
-import {
-  Prisma,
-  User as PrismaUser,
-  UserRole as PrismaUserRole,
-} from '@prisma/client';
+import { Prisma, User as PrismaUser, UserRole as PrismaUserRole } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
@@ -53,10 +49,7 @@ export class UserService {
         },
       });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new BadRequestException('Login is already taken');
       }
       throw error;
@@ -65,10 +58,7 @@ export class UserService {
     return this.toResponse(created);
   }
 
-  async updatePassword(
-    id: string,
-    dto: UpdatePasswordDto,
-  ): Promise<UserResponseDto> {
+  async updatePassword(id: string, dto: UpdatePasswordDto): Promise<UserResponseDto> {
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) throw new NotFoundException(`User with id "${id}" not found`);

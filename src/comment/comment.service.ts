@@ -1,12 +1,8 @@
-import {
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { Comment } from '@/common/types/comment';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
-import { Comment as PrismaComment} from '@prisma/client'
+import { Comment as PrismaComment } from '@prisma/client';
 
 @Injectable()
 export class CommentService {
@@ -23,8 +19,7 @@ export class CommentService {
     const comment = await this.prisma.comment.findUnique({
       where: { id },
     });
-    if (!comment)
-      throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (!comment) throw new NotFoundException(`Comment with id "${id}" not found`);
     return this.toResponse(comment);
   }
 
@@ -35,9 +30,7 @@ export class CommentService {
         select: { id: true },
       });
       if (!articleExists) {
-        throw new UnprocessableEntityException(
-          `Article with id "${dto.articleId}" not found`,
-        );
+        throw new UnprocessableEntityException(`Article with id "${dto.articleId}" not found`);
       }
 
       const created = await tx.comment.create({
@@ -56,8 +49,7 @@ export class CommentService {
       where: { id },
       select: { id: true },
     });
-    if (!comment)
-      throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (!comment) throw new NotFoundException(`Comment with id "${id}" not found`);
     await this.prisma.comment.delete({
       where: { id },
     });
@@ -67,7 +59,9 @@ export class CommentService {
   // via toISOString(), producing different format - "2026-04-10T12:34:56.789Z"
   // we use Pick<PrismaComment, union of fields' in order toResponse() work with potential partial selects
   // (queries with select/include combos). Function only requires/depends on this 5 specific fields only
-  private toResponse(comment: Pick<PrismaComment, 'id' | 'content' | "articleId" | 'authorId' | 'createdAt'>): Comment {
+  private toResponse(
+    comment: Pick<PrismaComment, 'id' | 'content' | 'articleId' | 'authorId' | 'createdAt'>,
+  ): Comment {
     return {
       id: comment.id,
       content: comment.content,

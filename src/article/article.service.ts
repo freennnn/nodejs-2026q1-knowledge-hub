@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import { Article } from '@/common/types/article';
-import {
-  Article as PrismaArticle,
-  ArticleStatus as PrismaArticleStatus,
-} from '@prisma/client';
+import { Article as PrismaArticle, ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { ListArticlesQueryDto } from './dto/list-articles.query.dto';
@@ -46,8 +43,7 @@ export class ArticleService {
         tags: true,
       },
     });
-    if (!article)
-      throw new NotFoundException(`Article with id "${id}" not found`);
+    if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
     return this.toResponse(article);
   }
 
@@ -79,8 +75,7 @@ export class ArticleService {
       where: { id },
       select: { id: true },
     });
-    if (!article)
-      throw new NotFoundException(`Article with id "${id}" not found`);
+    if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
 
     const updated = await this.prisma.article.update({
       where: { id },
@@ -114,8 +109,7 @@ export class ArticleService {
       where: { id },
       select: { id: true },
     });
-    if (!article)
-      throw new NotFoundException(`Article with id "${id}" not found`);
+    if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
 
     // Related comments and tag links are deleted by FK cascade.
     await this.prisma.article.delete({
@@ -123,9 +117,7 @@ export class ArticleService {
     });
   }
 
-  private toResponse(
-    article: PrismaArticle & { tags: Array<{ name: string }> },
-  ): Article {
+  private toResponse(article: PrismaArticle & { tags: Array<{ name: string }> }): Article {
     return {
       id: article.id,
       title: article.title,

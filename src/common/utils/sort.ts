@@ -21,9 +21,7 @@ export function maybeSort<T>(
   if (!sortBy) return items;
 
   if (!allowedFields.includes(sortBy)) {
-    throw new BadRequestException(
-      `Invalid sortBy. Allowed: ${allowedFields.join(', ')}`,
-    );
+    throw new BadRequestException(`Invalid sortBy. Allowed: ${allowedFields.join(', ')}`);
   }
 
   const dir = (order ?? SortOrder.ASC) === SortOrder.DESC ? -1 : 1;

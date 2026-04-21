@@ -43,9 +43,7 @@ export class CommentController {
 
   @ApiResponse({ status: 200, type: Object })
   @Get(':id')
-  async findOne(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<Comment> {
+  async findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<Comment> {
     return this.commentService.findOne(id);
   }
 
@@ -58,9 +56,7 @@ export class CommentController {
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  async remove(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<void> {
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> {
     return this.commentService.remove(id);
   }
 }

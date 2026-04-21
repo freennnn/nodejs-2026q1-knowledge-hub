@@ -1,9 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
-import {
-  ARTICLE_STATUS_VALUES,
-  ArticleStatus,
-} from '@/common/enums/article-status.enum';
+import { ARTICLE_STATUS_VALUES, ArticleStatus } from '@/common/enums/article-status.enum';
 import { ListQueryDto } from '@/common/dto/list-query.dto';
 
 export class ListArticlesQueryDto extends ListQueryDto {

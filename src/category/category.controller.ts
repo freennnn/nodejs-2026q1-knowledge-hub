@@ -31,19 +31,13 @@ export class CategoryController {
     @Query() query: ListQueryDto, // global Transform() will pass empty {} if query is missing, which satisfys PaginationQueryDto with 2 optional fields
   ): Promise<Category[] | PaginatedResponse<Category>> {
     const categories = await this.categoryService.findAll();
-    const sorted = maybeSort(categories, query.sortBy, query.order, [
-      'id',
-      'name',
-      'description',
-    ]);
+    const sorted = maybeSort(categories, query.sortBy, query.order, ['id', 'name', 'description']);
     return maybePaginate(sorted, query);
   }
 
   @ApiResponse({ status: 200, type: Object })
   @Get(':id')
-  async findOne(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<Category> {
+  async findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<Category> {
     return this.categoryService.findOne(id);
   }
 
@@ -65,9 +59,7 @@ export class CategoryController {
   @ApiResponse({ status: 204 })
   @HttpCode(204)
   @Delete(':id')
-  async remove(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<void> {
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> {
     return this.categoryService.remove(id);
   }
 }

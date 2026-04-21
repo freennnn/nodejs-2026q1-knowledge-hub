@@ -29,7 +29,7 @@ export class UserController {
   @Get()
   async findAll(
     @Query() query: ListQueryDto,
-  ): Promise<UserResponseDto[] | PaginatedResponse<UserResponseDto>>{
+  ): Promise<UserResponseDto[] | PaginatedResponse<UserResponseDto>> {
     const users = await this.userService.findAll();
     const sorted = maybeSort(users, query.sortBy, query.order, [
       'id',
