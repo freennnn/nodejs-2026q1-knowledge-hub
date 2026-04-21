@@ -11,7 +11,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 
-const prismaToAppUserRole = {
+export const prismaToAppUserRole = {
   [PrismaUserRole.ADMIN]: UserRole.ADMIN,
   [PrismaUserRole.EDITOR]: UserRole.EDITOR,
   [PrismaUserRole.VIEWER]: UserRole.VIEWER,
