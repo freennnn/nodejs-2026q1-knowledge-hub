@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { UserRole } from '@/common/enums/user-role.enum';
 import { Prisma, User as PrismaUser, UserRole as PrismaUserRole } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
@@ -23,6 +24,8 @@ const appToPrismaUserRole = Object.fromEntries(
 
 @Injectable()
 export class UserService {
+  private readonly saltRounds = Number(process.env.CRYPT_SALT ?? 10);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(): Promise<UserResponseDto[]> {
@@ -40,11 +43,12 @@ export class UserService {
 
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
     let created: PrismaUser;
+    const hashedPassword = await bcrypt.hash(dto.password, this.saltRounds);
     try {
       created = await this.prisma.user.create({
         data: {
           login: dto.login,
-          password: dto.password,
+          password: hashedPassword,
           role: appToPrismaUserRole[dto.role ?? UserRole.VIEWER],
         },
       });
@@ -62,12 +66,14 @@ export class UserService {
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) throw new NotFoundException(`User with id "${id}" not found`);
-    if (user.password !== dto.oldPassword) {
+    const isOldPasswordCorrect = await bcrypt.compare(dto.oldPassword, user.password);
+    if (!isOldPasswordCorrect) {
       throw new ForbiddenException('Old password is wrong');
     }
+    const hashedNewPassword = await bcrypt.hash(dto.newPassword, this.saltRounds);
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { password: dto.newPassword },
+      data: { password: hashedNewPassword },
     });
     return this.toResponse(updated);
   }

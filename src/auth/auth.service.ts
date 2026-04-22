@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import { UserRole } from '@/common/enums/user-role.enum';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { prismaToAppUserRole, UserService } from '@/user/user.service';
@@ -44,7 +45,11 @@ export class AuthService {
       where: { login: dto.login },
     });
 
-    if (!user || user.password !== dto.password) {
+    if (!user) {
+      throw new ForbiddenException('Incorrect login or password');
+    }
+    const isPasswordValid = await bcrypt.compare(dto.password, user.password);
+    if (!isPasswordValid) {
       throw new ForbiddenException('Incorrect login or password');
     }
 
