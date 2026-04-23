@@ -22,7 +22,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithUser>();
-    const role = request.user?.role
+    const role = request.user?.role;
     // as long as auth guard passed we can say that request has .user attached and can check
     // if @Roles param decorators mathces the role from request.user
 
