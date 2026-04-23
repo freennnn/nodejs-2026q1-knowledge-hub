@@ -5,6 +5,7 @@ import { UserModule } from '@/user/user.module';
 import { PersistenceModule } from '@/persistence/persistence.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
@@ -13,6 +14,7 @@ import { RolesGuard } from './guards/roles.guard';
   controllers: [AuthController],
   providers: [
     AuthService,
+    AuthRateLimitGuard,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

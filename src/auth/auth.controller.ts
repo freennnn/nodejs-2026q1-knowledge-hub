@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserResponseDto } from '@/user/dto/user-response.dto';
 import { AuthService } from './auth.service';
@@ -7,6 +7,7 @@ import { LoginDto } from './dto/login.dto';
 import { TokensResponseDto } from './dto/tokens-response.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { PublicRoute } from './decorators/public.decorator';
+import { AuthRateLimitGuard } from './guards/auth-rate-limit.guard';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -15,7 +16,9 @@ export class AuthController {
 
   @ApiResponse({ status: 201, type: UserResponseDto })
   @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   @PublicRoute()
+  @UseGuards(AuthRateLimitGuard)
   @Post('signup')
   signup(@Body() dto: SignupDto): Promise<UserResponseDto> {
     return this.authService.signup(dto);
@@ -24,8 +27,10 @@ export class AuthController {
   @ApiResponse({ status: 200, type: TokensResponseDto })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Authentication failed' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   @HttpCode(200)
   @PublicRoute()
+  @UseGuards(AuthRateLimitGuard)
   @Post('login')
   login(@Body() dto: LoginDto): Promise<TokensResponseDto> {
     return this.authService.login(dto);
