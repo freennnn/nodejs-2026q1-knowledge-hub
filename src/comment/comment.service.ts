@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { UserRole } from '@/common/enums/user-role.enum';
+import { AuthUser } from '@/auth/types/auth-user.type';
 import { Comment } from '@/common/types/comment';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -23,7 +30,11 @@ export class CommentService {
     return this.toResponse(comment);
   }
 
-  async create(dto: CreateCommentDto): Promise<Comment> {
+  async create(dto: CreateCommentDto, actor: AuthUser): Promise<Comment> {
+    if (actor.role === UserRole.EDITOR && dto.authorId !== actor.userId) {
+      throw new ForbiddenException('Editors can only create their own comments');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const articleExists = await tx.article.findUnique({
         where: { id: dto.articleId },
@@ -44,12 +55,15 @@ export class CommentService {
     });
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: AuthUser): Promise<void> {
     const comment = await this.prisma.comment.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
     if (!comment) throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (actor.role === UserRole.EDITOR && comment.authorId !== actor.userId) {
+      throw new ForbiddenException('Insufficient permissions for this operation');
+    }
     await this.prisma.comment.delete({
       where: { id },
     });

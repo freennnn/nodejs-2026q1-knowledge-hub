@@ -9,8 +9,9 @@ import { UserRole } from '@/common/enums/user-role.enum';
 import { Prisma, User as PrismaUser, UserRole as PrismaUserRole } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdatePasswordDto } from './dto/update-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { AuthUser } from '@/auth/types/auth-user.type';
 
 export const prismaToAppUserRole = {
   [PrismaUserRole.ADMIN]: UserRole.ADMIN,
@@ -62,14 +63,37 @@ export class UserService {
     return this.toResponse(created);
   }
 
-  async updatePassword(id: string, dto: UpdatePasswordDto): Promise<UserResponseDto> {
+  async update(id: string, dto: UpdateUserDto, actor: AuthUser): Promise<UserResponseDto> {
+    if (dto.role === undefined && (!dto.oldPassword || !dto.newPassword)) {
+      throw new BadRequestException('oldPassword and newPassword are required');
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id } });
 
     if (!user) throw new NotFoundException(`User with id "${id}" not found`);
+
+    // update as either role update OR password update, not both in one request.
+    // if update has 'role' - then password part is ignored, even if inlcluded
+    if (dto.role !== undefined) {
+      if (actor.role !== UserRole.ADMIN) {
+        throw new ForbiddenException('Only admins can change user roles');
+      }
+      const updatedRole = await this.prisma.user.update({
+        where: { id },
+        data: { role: appToPrismaUserRole[dto.role] },
+      });
+      return this.toResponse(updatedRole);
+    }
+
+    // only admins can update passwords of other users ()
+    if (actor.role !== UserRole.ADMIN && actor.userId !== id) {
+      throw new ForbiddenException('You can only update your own password');
+    }
     const isOldPasswordCorrect = await bcrypt.compare(dto.oldPassword, user.password);
     if (!isOldPasswordCorrect) {
       throw new ForbiddenException('Old password is wrong');
     }
+
     const hashedNewPassword = await bcrypt.hash(dto.newPassword, this.saltRounds);
     const updated = await this.prisma.user.update({
       where: { id },

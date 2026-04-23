@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
+import { UserRole } from '@/common/enums/user-role.enum';
+import { AuthUser } from '@/auth/types/auth-user.type';
 import { Article } from '@/common/types/article';
 import { Article as PrismaArticle, ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
@@ -47,13 +49,17 @@ export class ArticleService {
     return this.toResponse(article);
   }
 
-  async create(dto: CreateArticleDto): Promise<Article> {
+  async create(dto: CreateArticleDto, actor: AuthUser): Promise<Article> {
+    if (actor.role === UserRole.EDITOR && dto.authorId !== actor.userId) {
+      throw new ForbiddenException('Editors can only create their own articles');
+    }
+    const authorId = dto.authorId ?? null;
     const created = await this.prisma.article.create({
       data: {
         title: dto.title,
         content: dto.content,
         status: appToPrismaArticleStatus[dto.status ?? ArticleStatus.DRAFT],
-        authorId: dto.authorId ?? null,
+        authorId,
         categoryId: dto.categoryId ?? null,
         tags: {
           connectOrCreate: (dto.tags ?? []).map((name) => ({
@@ -70,12 +76,22 @@ export class ArticleService {
     return this.toResponse(created);
   }
 
-  async update(id: string, dto: UpdateArticleDto): Promise<Article> {
+  async update(id: string, dto: UpdateArticleDto, actor: AuthUser): Promise<Article> {
     const article = await this.prisma.article.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
     if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
+    if (actor.role === UserRole.EDITOR && article.authorId !== actor.userId) {
+      throw new ForbiddenException('Insufficient permissions for this operation');
+    }
+    if (
+      actor.role === UserRole.EDITOR &&
+      dto.authorId !== undefined &&
+      dto.authorId !== actor.userId
+    ) {
+      throw new ForbiddenException('Editors can only update their own articles');
+    }
 
     const updated = await this.prisma.article.update({
       where: { id },
@@ -104,7 +120,10 @@ export class ArticleService {
     return this.toResponse(updated);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: AuthUser): Promise<void> {
+    if (actor.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Insufficient permissions for this operation');
+    }
     const article = await this.prisma.article.findUnique({
       where: { id },
       select: { id: true },

@@ -1,7 +1,6 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UserRole } from '@/common/enums/user-role.enum';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { prismaToAppUserRole, UserService } from '@/user/user.service';
 import { UserResponseDto } from '@/user/dto/user-response.dto';
@@ -9,23 +8,14 @@ import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { TokensResponseDto } from './dto/tokens-response.dto';
 import { RefreshDto } from './dto/refresh.dto';
-
-type TokenPayload = {
-  userId: string;
-  login: string;
-  role: UserRole;
-};
+import { AuthUser } from './types/auth-user.type';
 
 @Injectable()
 export class AuthService {
-  private readonly accessTokenSecret =
-    process.env.JWT_SECRET_KEY ?? process.env.JWT_SECRET ?? 'access-secret';
-  private readonly refreshTokenSecret =
-    process.env.JWT_SECRET_REFRESH_KEY ?? process.env.JWT_REFRESH_SECRET ?? 'refresh-secret';
-  private readonly accessTokenTtl =
-    process.env.TOKEN_EXPIRE_TIME ?? process.env.JWT_ACCESS_TTL ?? '15m';
-  private readonly refreshTokenTtl =
-    process.env.TOKEN_REFRESH_EXPIRE_TIME ?? process.env.JWT_REFRESH_TTL ?? '7d';
+  private readonly accessTokenSecret = process.env.JWT_SECRET_KEY ?? 'access-secret';
+  private readonly refreshTokenSecret = process.env.JWT_SECRET_REFRESH_KEY ?? 'refresh-secret';
+  private readonly accessTokenTtl = process.env.TOKEN_EXPIRE_TIME ?? '15m';
+  private readonly refreshTokenTtl = process.env.TOKEN_REFRESH_EXPIRE_TIME ?? '7d';
 
   constructor(
     private readonly userService: UserService,
@@ -53,7 +43,7 @@ export class AuthService {
       throw new ForbiddenException('Incorrect login or password');
     }
 
-    const payload: TokenPayload = {
+    const payload: AuthUser = {
       userId: user.id,
       login: user.login,
       role: prismaToAppUserRole[user.role],
@@ -67,9 +57,9 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token is required');
     }
 
-    let payload: TokenPayload;
+    let payload: AuthUser;
     try {
-      payload = await this.jwtService.verifyAsync<TokenPayload>(dto.refreshToken, {
+      payload = await this.jwtService.verifyAsync<AuthUser>(dto.refreshToken, {
         secret: this.refreshTokenSecret,
       });
     } catch {
@@ -83,7 +73,7 @@ export class AuthService {
     });
   }
 
-  private async issueTokenPair(payload: TokenPayload): Promise<TokensResponseDto> {
+  private async issueTokenPair(payload: AuthUser): Promise<TokensResponseDto> {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.accessTokenSecret,
