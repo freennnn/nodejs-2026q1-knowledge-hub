@@ -45,4 +45,14 @@ export class AuthController {
   refresh(@Body() dto: RefreshDto): Promise<TokensResponseDto> {
     return this.authService.refresh(dto);
   }
+
+  @ApiResponse({ status: 204, description: 'Logged out successfully' })
+  @ApiResponse({ status: 401, description: 'No refresh token provided' })
+  @ApiResponse({ status: 403, description: 'Invalid or expired refresh token' })
+  @HttpCode(204)
+  @PublicRoute()
+  @Post('logout')
+  async logout(@Body() dto: RefreshDto): Promise<void> {
+    await this.authService.logout(dto);
+  }
 }
