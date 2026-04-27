@@ -1,7 +1,4 @@
-import {
-  ArticleStatus as PrismaArticleStatus,
-  UserRole as PrismaUserRole,
-} from '@prisma/client';
+import { ArticleStatus as PrismaArticleStatus, UserRole as PrismaUserRole } from '@prisma/client';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import { UserRole } from '@/common/enums/user-role.enum';
