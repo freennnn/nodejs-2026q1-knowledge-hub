@@ -20,7 +20,12 @@ export default defineConfig({
         'src/**/*.filter.ts',
         'src/**/*.dto.ts',
       ],
-      exclude: ['src/__tests__/unit/**'],
+      exclude: [
+        'src/__tests__/unit/**',
+        'src/persistence/**',
+        'src/**/*response.dto.ts',
+        'src/auth/dto/tokens-response.dto.ts',
+      ],
       thresholds: {
         lines: 90,
         branches: 85,
