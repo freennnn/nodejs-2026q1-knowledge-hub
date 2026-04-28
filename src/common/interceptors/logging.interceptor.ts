@@ -1,7 +1,23 @@
-import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  type LoggerService,
+  NestInterceptor,
+} from '@nestjs/common';
 import { type AbstractHttpAdapter, type HttpAdapterHost } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { finalize } from 'rxjs/operators';
+
+const REDACTED_VALUE = '[REDACTED]';
+const SENSITIVE_KEYS = ['password', 'token', 'authorization'];
+
+function readObjectProperty(obj: unknown, property: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined;
+
+  return (obj as Record<string, unknown>)[property];
+}
 
 function readStatusCode(res: unknown): number | undefined {
   if (!res || typeof res !== 'object') return undefined;
@@ -17,11 +33,36 @@ function readStatusCode(res: unknown): number | undefined {
   return typeof rawStatus === 'number' ? rawStatus : undefined;
 }
 
+function shouldRedactKey(key: string): boolean {
+  const normalizedKey = key.toLowerCase();
+
+  return SENSITIVE_KEYS.some((sensitiveKey) => normalizedKey.includes(sensitiveKey));
+}
+
+export function sanitizeLogData(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLogData(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, unknown>>(
+    (sanitized, [key, nestedValue]) => {
+      sanitized[key] = shouldRedactKey(key) ? REDACTED_VALUE : sanitizeLogData(nestedValue);
+      return sanitized;
+    },
+    {},
+  );
+}
+
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  private readonly logger = new Logger(LoggingInterceptor.name);
-
-  constructor(private readonly adapterHost: HttpAdapterHost) {}
+  constructor(
+    private readonly adapterHost: HttpAdapterHost,
+    private readonly logger: LoggerService = new Logger(LoggingInterceptor.name),
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const http = context.switchToHttp();
@@ -33,11 +74,31 @@ export class LoggingInterceptor implements NestInterceptor {
     const url = httpAdapter.getRequestUrl(req);
     const startMs = Date.now();
 
+    this.logger.log(
+      'Incoming request',
+      {
+        method,
+        url,
+        query: sanitizeLogData(readObjectProperty(req, 'query')),
+        body: sanitizeLogData(readObjectProperty(req, 'body')),
+      },
+      LoggingInterceptor.name,
+    );
+
     return next.handle().pipe(
       finalize(() => {
         const durationMs = Date.now() - startMs;
         const statusCode = readStatusCode(res);
-        this.logger.log(`${method} ${url} -> ${statusCode} (${durationMs}ms)`);
+        this.logger.log(
+          'Outgoing response',
+          {
+            method,
+            url,
+            statusCode,
+            responseTimeMs: durationMs,
+          },
+          LoggingInterceptor.name,
+        );
       }),
     );
   }

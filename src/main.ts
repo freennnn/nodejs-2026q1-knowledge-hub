@@ -6,38 +6,53 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { AppLogger } from './common/logger/app.logger';
+import { setupProcessErrorHandlers } from './common/process/process-error-handlers';
+import { getErrorMessage, getErrorStack } from './common/utils/error-details';
 
 async function bootstrap() {
   dotenv.config();
-  const app = await NestFactory.create(AppModule);
+  const logger = new AppLogger();
 
-  const adapterHost = app.get(HttpAdapterHost);
-  app.useGlobalInterceptors(new LoggingInterceptor(adapterHost));
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: { enableImplicitConversion: false },
-    }),
-  );
+  try {
+    const app = await NestFactory.create(AppModule, { logger });
+    app.enableShutdownHooks();
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Knowledge Hub API')
-    .setDescription('Nest.js Knowledge Hub REST API')
-    .setVersion('1.0')
-    .build();
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    const adapterHost = app.get(HttpAdapterHost);
+    setupProcessErrorHandlers(app, logger);
+    app.useGlobalFilters(new GlobalExceptionFilter(adapterHost, logger));
+    app.useGlobalInterceptors(new LoggingInterceptor(adapterHost, logger));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: false },
+      }),
+    );
 
-  const openApiYamlPath = path.join(process.cwd(), 'doc', 'api.yaml');
-  const openApiYamlText = fs.readFileSync(openApiYamlPath, 'utf8');
-  const openApiYamlDocument = parseYaml(openApiYamlText) as OpenAPIObject;
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Knowledge Hub API')
+      .setDescription('Nest.js Knowledge Hub REST API')
+      .setVersion('1.0')
+      .build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
 
-  SwaggerModule.setup('doc', app, swaggerDocument);
-  SwaggerModule.setup('doc-manual', app, openApiYamlDocument);
+    const openApiYamlPath = path.join(process.cwd(), 'doc', 'api.yaml');
+    const openApiYamlText = fs.readFileSync(openApiYamlPath, 'utf8');
+    const openApiYamlDocument = parseYaml(openApiYamlText) as OpenAPIObject;
 
-  const port = Number(process.env.PORT ?? 4000);
-  await app.listen(port);
+    SwaggerModule.setup('doc', app, swaggerDocument);
+    SwaggerModule.setup('doc-manual', app, openApiYamlDocument);
+
+    const port = Number(process.env.PORT ?? 4000);
+    await app.listen(port);
+  } catch (error) {
+    logger.error(`Bootstrap failed: ${getErrorMessage(error)}`, getErrorStack(error), 'Bootstrap');
+    process.exit(1);
+  }
 }
-bootstrap();
+
+void bootstrap();
