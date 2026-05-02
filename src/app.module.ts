@@ -7,6 +7,7 @@ import { CategoryModule } from '@/category/category.module';
 import { ArticleModule } from '@/article/article.module';
 import { CommentModule } from '@/comment/comment.module';
 import { AuthModule } from '@/auth/auth.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuthModule } from '@/auth/auth.module';
     ArticleModule,
     CommentModule,
     AuthModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

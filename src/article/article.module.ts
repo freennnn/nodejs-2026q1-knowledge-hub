@@ -7,5 +7,6 @@ import { ArticleService } from './article.service';
   imports: [PersistenceModule],
   controllers: [ArticleController],
   providers: [ArticleService],
+  exports: [ArticleService],
 })
 export class ArticleModule {}
