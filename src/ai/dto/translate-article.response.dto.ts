@@ -8,5 +8,8 @@ export class TranslateArticleResponseDto {
   translatedText!: string;
 
   @ApiProperty()
-  detectedLanguage!: string;
+  detectedLanguage: string;
+
+  @ApiProperty()
+  cacheHit: boolean;
 }
