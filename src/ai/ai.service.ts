@@ -1,4 +1,4 @@
-import { Injectable, BadGatewayException } from '@nestjs/common';
+import { BadRequestException, BadGatewayException, Injectable } from '@nestjs/common';
 import { ArticleService } from '@/article/article.service';
 import { GeminiService } from './providers/gemini.service';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
@@ -40,6 +40,9 @@ export class AiService {
     sourceLanguage?: string,
   ): Promise<TranslateArticleResponseDto> {
     const article = await this.articleService.findOne(id);
+    if (!article.content.trim()) {
+      throw new BadRequestException('Article content is empty');
+    }
 
     const cacheKey = this.buildTranslateArticleCacheKey(
       article.id,
