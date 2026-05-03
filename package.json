@@ -39,6 +39,7 @@
     "docker:push:image": "dotenv -e .env -- sh -c 'docker tag \"$IMAGE_LOCAL_NAME\" \"$IMAGE_HUB_NAME\" && docker push \"$IMAGE_HUB_NAME\"'"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^10.4.16",
     "@nestjs/core": "^10.4.15",
     "@nestjs/jwt": "^11.0.0",
@@ -47,6 +48,7 @@
     "@nestjs/swagger": "^7.4.2",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "axios": "^1.16.0",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
