@@ -166,6 +166,39 @@ components:
         - summary
         - wordCount
         - cacheHit
+    GenericPromptRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 512
+        systemInstruction:
+          type: string
+          maxLength: 2000
+        maxOutputTokens:
+          type: integer
+          minimum: 16
+          maximum: 512
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 1
+        useCache:
+          type: boolean
+          description: If true (default), identical requests may return cached responses
+      required:
+        - prompt
+    GenericPromptResponse:
+      type: object
+      properties:
+        text:
+          type: string
+        cacheHit:
+          type: boolean
+      required:
+        - text
+        - cacheHit
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
@@ -774,6 +807,38 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
         404:
           description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/generate:
+    post:
+      tags:
+        - AI
+      summary: Generic prompt completion
+      description: >
+        Free-form Gemini completion for an arbitrary prompt (`generic prompt` flow). Route remains `/ai/generate` for compatibility.
+        Responses may be cached when useCache is true (default). Cache keys use a hash of request fields (including configured model name);
+        prompts are not logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPromptRequest'
+      responses:
+        200:
+          description: Model text result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericPromptResponse'
+        400:
+          description: Bad request. Invalid body
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
         502:
           description: Gemini rejected the request or returned an error
         503:

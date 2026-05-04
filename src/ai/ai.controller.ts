@@ -9,6 +9,8 @@ import { TranslateArticleDto } from './dto/translate-article.dto';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleDto } from './dto/summarize-article.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
+import { GenericPromptDto } from './dto/generic-prompt.dto';
+import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 
 @ApiTags('ai')
 @ApiBearerAuth('access-token')
@@ -53,5 +55,21 @@ export class AiController {
     @CurrentUser() actor: AuthUser,
   ): Promise<SummarizeArticleResponseDto> {
     return this.aiService.summarizeArticle(articleId, dto.maxWords, dto.style, actor);
+  }
+
+  @ApiResponse({ status: 200, type: GenericPromptResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({ status: 502, description: 'Gemini rejected the request or returned an error' })
+  @ApiResponse({ status: 503, description: 'Gemini unreachable, timed out, or rate limited' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Post('/generate')
+  async genericPrompt(
+    @Body() dto: GenericPromptDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<GenericPromptResponseDto> {
+    return this.aiService.genericPrompt(dto, actor);
   }
 }

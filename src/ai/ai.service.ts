@@ -4,12 +4,15 @@ import {
   HttpException,
   Injectable,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { ArticleService } from '@/article/article.service';
 import { getErrorMessage } from '@/common/utils/error-details';
 import { GeminiService } from './providers/gemini.service';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
+import { GenericPromptDto } from './dto/generic-prompt.dto';
+import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
 
@@ -21,6 +24,10 @@ type CachedTranslation = {
 type CachedSummary = {
   summary: string;
   wordCount: number;
+};
+
+type CachedGenericPrompt = {
+  text: string;
 };
 
 const GEMINI_PROVIDER = 'gemini' as const;
@@ -68,6 +75,22 @@ export class AiService {
       maxWords ?? 'default',
       style ?? 'default',
     ].join(':');
+  }
+
+  private buildGenericPromptRequestPayloadHash(dto: GenericPromptDto): string {
+    const payload = {
+      model: this.geminiModel,
+      prompt: dto.prompt,
+      systemInstruction: dto.systemInstruction ?? null,
+      maxOutputTokens: dto.maxOutputTokens ?? null,
+      temperature: dto.temperature ?? null,
+    };
+
+    return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  }
+
+  private buildGenericPromptCacheKey(promptHash: string): string {
+    return ['ai', 'generic-prompt', promptHash].join(':');
   }
 
   async translateArticle(
@@ -124,6 +147,7 @@ export class AiService {
       );
       const detectedLanguage = sourceLanguage ?? translated.detectedLanguage;
       if (!detectedLanguage) {
+        // provider failed to detect source language
         throw new BadGatewayException('AI provider did not return detected language');
       }
       this.aiCacheService.set(cacheKey, {
@@ -264,6 +288,89 @@ export class AiService {
         articleId: article.id,
         maxWords,
         style,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
+        cacheHit: false,
+        httpStatus,
+        ok: false,
+        durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
+        errorMessage: getErrorMessage(error),
+      });
+      throw error;
+    }
+  }
+
+  async genericPrompt(dto: GenericPromptDto, actor: AuthUser): Promise<GenericPromptResponseDto> {
+    const startedAt = Date.now();
+    const useCache = dto.useCache !== false;
+    const promptHash = this.buildGenericPromptRequestPayloadHash(dto);
+
+    if (useCache) {
+      const cacheKey = this.buildGenericPromptCacheKey(promptHash);
+      const cached = this.aiCacheService.get<CachedGenericPrompt>(cacheKey);
+      if (cached) {
+        this.aiRequestLogService.logGenericPromptRequest({
+          operation: 'generic_prompt',
+          userId: actor.userId,
+          login: actor.login,
+          role: actor.role,
+          promptHash,
+          useCache: true,
+          provider: GEMINI_PROVIDER,
+          model: this.geminiModel,
+          geminiCalled: false,
+          cacheHit: true,
+          httpStatus: 200,
+          ok: true,
+          durationMs: Date.now() - startedAt,
+          createdAt: new Date().toISOString(),
+        });
+        return { text: cached.text, cacheHit: true };
+      }
+    }
+
+    try {
+      const generated = await this.geminiService.completeGenericPrompt({
+        userPrompt: dto.prompt,
+        systemInstruction: dto.systemInstruction,
+        maxOutputTokens: dto.maxOutputTokens,
+        temperature: dto.temperature,
+      });
+
+      if (useCache) {
+        const cacheKey = this.buildGenericPromptCacheKey(promptHash);
+        this.aiCacheService.set(cacheKey, { text: generated.text });
+      }
+
+      this.aiRequestLogService.logGenericPromptRequest({
+        operation: 'generic_prompt',
+        userId: actor.userId,
+        login: actor.login,
+        role: actor.role,
+        promptHash,
+        useCache,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
+        cacheHit: false,
+        httpStatus: 200,
+        ok: true,
+        durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
+      });
+
+      return { text: generated.text, cacheHit: false };
+    } catch (error) {
+      const httpStatus = error instanceof HttpException ? error.getStatus() : 500;
+      this.aiRequestLogService.logGenericPromptRequest({
+        operation: 'generic_prompt',
+        userId: actor.userId,
+        login: actor.login,
+        role: actor.role,
+        promptHash,
+        useCache,
         provider: GEMINI_PROVIDER,
         model: this.geminiModel,
         geminiCalled: true,

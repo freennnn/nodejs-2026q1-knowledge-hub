@@ -38,6 +38,24 @@ export type AiSummarizeRequestLog = {
   errorMessage?: string;
 };
 
+export type AiGenericPromptRequestLog = {
+  operation: 'generic_prompt';
+  userId: string;
+  login: string;
+  role: string;
+  promptHash: string;
+  useCache: boolean;
+  provider: 'gemini';
+  model: string;
+  geminiCalled: boolean;
+  cacheHit: boolean;
+  httpStatus: number;
+  ok: boolean;
+  durationMs: number;
+  createdAt: string;
+  errorMessage?: string;
+};
+
 @Injectable()
 export class AiRequestLogService {
   private readonly logger = new Logger(AiRequestLogService.name);
@@ -48,5 +66,9 @@ export class AiRequestLogService {
 
   logSummarizeRequest(entry: AiSummarizeRequestLog): void {
     this.logger.log('AI summarize request', entry);
+  }
+
+  logGenericPromptRequest(entry: AiGenericPromptRequestLog): void {
+    this.logger.log('AI generic prompt request', entry);
   }
 }

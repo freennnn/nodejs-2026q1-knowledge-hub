@@ -10,6 +10,7 @@ import { isAxiosError, type AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { buildTranslatePrompt } from '../prompts/translate.prompt';
 import { buildSummarizePrompt } from '../prompts/summarize.prompt';
+import { buildGenericPrompt } from '../prompts/generic-prompt.prompt';
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -31,6 +32,16 @@ type SummaryResponse = {
   wordCount: number;
 };
 
+type GenericPromptResult = {
+  text: string;
+};
+
+/** Generic prompt flow: tight caps for cost and abuse resistance (defense in depth vs DTO). */
+const GENERIC_PROMPT_MAX_USER_CHARS = 512;
+const GENERIC_PROMPT_MAX_SYSTEM_CHARS = 512;
+const GENERIC_PROMPT_MAX_OUTPUT_TOKENS = 512;
+const GENERIC_PROMPT_MIN_OUTPUT_TOKENS = 16;
+
 @Injectable()
 export class GeminiService {
   private readonly apiBaseUrl =
@@ -44,35 +55,10 @@ export class GeminiService {
     targetLanguage: string,
     sourceLanguage?: string,
   ): Promise<TranslationResponse> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new InternalServerErrorException('Gemini API key is not configured');
-    }
-
-    const url = `${this.apiBaseUrl}/v1beta/models/${this.model}:generateContent`;
     const prompt = buildTranslatePrompt({ text, targetLanguage, sourceLanguage });
 
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post<GeminiGenerateContentResponse>(
-          url,
-          {
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: prompt }],
-              },
-            ],
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-          },
-        ),
-      );
-
+      const data = await this.postGenerateContent(prompt);
       return this.parseTranslationResponse(data);
     } catch (error) {
       if (isAxiosError(error)) {
@@ -83,35 +69,10 @@ export class GeminiService {
   }
 
   async summarizeText(text: string, maxWords?: number, style?: string): Promise<SummaryResponse> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new InternalServerErrorException('Gemini API key is not configured');
-    }
-
-    const url = `${this.apiBaseUrl}/v1beta/models/${this.model}:generateContent`;
     const prompt = buildSummarizePrompt({ text, maxWords, style });
 
     try {
-      const { data } = await firstValueFrom(
-        this.httpService.post<GeminiGenerateContentResponse>(
-          url,
-          {
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: prompt }],
-              },
-            ],
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-          },
-        ),
-      );
-
+      const data = await this.postGenerateContent(prompt);
       return this.parseSummaryResponse(data);
     } catch (error) {
       if (isAxiosError(error)) {
@@ -119,6 +80,98 @@ export class GeminiService {
       }
       throw error;
     }
+  }
+
+  async completeGenericPrompt(options: {
+    userPrompt: string;
+    systemInstruction?: string;
+    maxOutputTokens?: number;
+    temperature?: number;
+  }): Promise<GenericPromptResult> {
+    const userPrompt = this.truncateGenericPromptText(options.userPrompt, GENERIC_PROMPT_MAX_USER_CHARS);
+    const systemInstruction = options.systemInstruction
+      ? this.truncateGenericPromptText(options.systemInstruction, GENERIC_PROMPT_MAX_SYSTEM_CHARS)
+      : undefined;
+
+    const maxOutputTokens = this.clampGenericPromptMaxOutputTokens(options.maxOutputTokens);
+
+    const prompt = buildGenericPrompt({
+      userPrompt,
+      systemInstruction,
+      maxOutputTokens,
+      temperature: options.temperature,
+    });
+
+    const generationConfig: Record<string, unknown> = {
+      maxOutputTokens,
+    };
+    if (options.temperature !== undefined) {
+      generationConfig.temperature = options.temperature;
+    }
+
+    try {
+      const data = await this.postGenerateContent(prompt, generationConfig);
+      return this.parseGenericPromptResponse(data);
+    } catch (error) {
+      if (isAxiosError(error)) {
+        throw this.mapAxiosErrorToHttpException(error);
+      }
+      throw error;
+    }
+  }
+
+  /** Prefer code-point boundaries over raw UTF-16 slice for trimmed user/system text. */
+  private truncateGenericPromptText(value: string, maxChars: number): string {
+    if (value.length <= maxChars) {
+      return value;
+    }
+    return Array.from(value).slice(0, maxChars).join('');
+  }
+
+  private clampGenericPromptMaxOutputTokens(requested: number | undefined): number {
+    const fallback = GENERIC_PROMPT_MAX_OUTPUT_TOKENS;
+    const n = requested !== undefined ? requested : fallback;
+    return Math.min(GENERIC_PROMPT_MAX_OUTPUT_TOKENS, Math.max(GENERIC_PROMPT_MIN_OUTPUT_TOKENS, n));
+  }
+
+  private requireApiKey(): string {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new InternalServerErrorException('Gemini API key is not configured');
+    }
+    return apiKey;
+  }
+
+  private async postGenerateContent(
+    prompt: string,
+    generationConfig?: Record<string, unknown>,
+  ): Promise<GeminiGenerateContentResponse> {
+    const apiKey = this.requireApiKey();
+    const url = `${this.apiBaseUrl}/v1beta/models/${this.model}:generateContent`;
+
+    const body: Record<string, unknown> = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }],
+        },
+      ],
+    };
+
+    if (generationConfig && Object.keys(generationConfig).length > 0) {
+      body.generationConfig = generationConfig;
+    }
+
+    const { data } = await firstValueFrom(
+      this.httpService.post<GeminiGenerateContentResponse>(url, body, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+      }),
+    );
+
+    return data;
   }
 
   private parseTranslationResponse(data: GeminiGenerateContentResponse): TranslationResponse {
@@ -177,6 +230,31 @@ export class GeminiService {
       };
     } catch {
       throw new BadGatewayException('Gemini API returned invalid summary JSON');
+    }
+  }
+
+  private parseGenericPromptResponse(data: GeminiGenerateContentResponse): GenericPromptResult {
+    const responseText = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter((part): part is string => Boolean(part))
+      .join('')
+      .trim();
+
+    if (!responseText) {
+      throw new BadGatewayException('Gemini API returned an empty response');
+    }
+
+    try {
+      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<GenericPromptResult>;
+      if (typeof parsed.text !== 'string' || !parsed.text.trim()) {
+        throw new Error('text is missing');
+      }
+
+      return {
+        text: parsed.text.trim(),
+      };
+    } catch {
+      throw new BadGatewayException('Gemini API returned invalid generic prompt JSON');
     }
   }
 
