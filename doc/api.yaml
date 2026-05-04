@@ -138,6 +138,34 @@ components:
         - translatedText
         - detectedLanguage
         - cacheHit
+    SummarizeArticleRequest:
+      type: object
+      properties:
+        maxWords:
+          type: integer
+          minimum: 10
+          maximum: 2000
+          example: 120
+        style:
+          type: string
+          example: 'bullet_points'
+    SummarizeArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        wordCount:
+          type: integer
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - summary
+        - wordCount
+        - cacheHit
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
@@ -700,6 +728,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TranslateArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/articles/{articleId}/summarize:
+    post:
+      tags:
+        - AI
+      summary: Summarize article content
+      description: Summarizes article content using Gemini (cached per article version and options).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummarizeArticleRequest'
+      responses:
+        200:
+          description: Summary result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummarizeArticleResponse'
         400:
           description: Bad request. Invalid body or empty article content
         401:

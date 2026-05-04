@@ -9,6 +9,7 @@ import { HttpService } from '@nestjs/axios';
 import { isAxiosError, type AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import { buildTranslatePrompt } from '../prompts/translate.prompt';
+import { buildSummarizePrompt } from '../prompts/summarize.prompt';
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -23,6 +24,11 @@ type GeminiGenerateContentResponse = {
 type TranslationResponse = {
   translatedText: string;
   detectedLanguage?: string;
+};
+
+type SummaryResponse = {
+  summary: string;
+  wordCount: number;
 };
 
 @Injectable()
@@ -76,6 +82,45 @@ export class GeminiService {
     }
   }
 
+  async summarizeText(text: string, maxWords?: number, style?: string): Promise<SummaryResponse> {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new InternalServerErrorException('Gemini API key is not configured');
+    }
+
+    const url = `${this.apiBaseUrl}/v1beta/models/${this.model}:generateContent`;
+    const prompt = buildSummarizePrompt({ text, maxWords, style });
+
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.post<GeminiGenerateContentResponse>(
+          url,
+          {
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: prompt }],
+              },
+            ],
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+          },
+        ),
+      );
+
+      return this.parseSummaryResponse(data);
+    } catch (error) {
+      if (isAxiosError(error)) {
+        throw this.mapAxiosErrorToHttpException(error);
+      }
+      throw error;
+    }
+  }
+
   private parseTranslationResponse(data: GeminiGenerateContentResponse): TranslationResponse {
     const responseText = data.candidates?.[0]?.content?.parts
       ?.map((part) => part.text)
@@ -88,9 +133,7 @@ export class GeminiService {
     }
 
     try {
-      const parsed = JSON.parse(
-        this.extractTranslationJson(responseText),
-      ) as Partial<TranslationResponse>;
+      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<TranslationResponse>;
       if (typeof parsed.translatedText !== 'string') {
         throw new Error('translatedText is missing');
       }
@@ -102,6 +145,38 @@ export class GeminiService {
       };
     } catch {
       throw new BadGatewayException('Gemini API returned invalid translation JSON');
+    }
+  }
+
+  private parseSummaryResponse(data: GeminiGenerateContentResponse): SummaryResponse {
+    const responseText = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter((part): part is string => Boolean(part))
+      .join('')
+      .trim();
+
+    if (!responseText) {
+      throw new BadGatewayException('Gemini API returned an empty response');
+    }
+
+    try {
+      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<SummaryResponse>;
+      if (typeof parsed.summary !== 'string' || !parsed.summary.trim()) {
+        throw new Error('summary is missing');
+      }
+      if (typeof parsed.wordCount !== 'number' || !Number.isFinite(parsed.wordCount)) {
+        throw new Error('wordCount is missing or invalid');
+      }
+      if (!Number.isInteger(parsed.wordCount)) {
+        throw new Error('wordCount must be an integer');
+      }
+
+      return {
+        summary: parsed.summary.trim(),
+        wordCount: parsed.wordCount,
+      };
+    } catch {
+      throw new BadGatewayException('Gemini API returned invalid summary JSON');
     }
   }
 
@@ -150,7 +225,7 @@ export class GeminiService {
     return typeof message === 'string' && message.trim().length > 0 ? message : undefined;
   }
 
-  private extractTranslationJson(responseText: string): string {
+  private extractJsonObjectFromModelText(responseText: string): string {
     const withoutFences = this.stripMarkdownJsonFence(responseText);
 
     try {

@@ -7,6 +7,8 @@ import { UserRole } from '@/common/enums/user-role.enum';
 import { AiService } from './ai.service';
 import { TranslateArticleDto } from './dto/translate-article.dto';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
+import { SummarizeArticleDto } from './dto/summarize-article.dto';
+import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
 
 @ApiTags('ai')
 @ApiBearerAuth('access-token')
@@ -34,5 +36,22 @@ export class AiController {
       dto.sourceLanguage,
       actor,
     );
+  }
+
+  @ApiResponse({ status: 200, type: SummarizeArticleResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed or empty article content' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({ status: 502, description: 'Gemini rejected the request or returned an error' })
+  @ApiResponse({ status: 503, description: 'Gemini unreachable, timed out, or rate limited' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Post('/articles/:articleId/summarize')
+  async summarize(
+    @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
+    @Body() dto: SummarizeArticleDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<SummarizeArticleResponseDto> {
+    return this.aiService.summarizeArticle(articleId, dto.maxWords, dto.style, actor);
   }
 }
