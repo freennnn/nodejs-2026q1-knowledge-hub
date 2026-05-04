@@ -110,6 +110,34 @@ components:
         - id
         - content
         - articleId
+    TranslateArticleRequest:
+      type: object
+      properties:
+        targetLanguage:
+          type: string
+          example: 'fr'
+        sourceLanguage:
+          type: string
+          example: 'en'
+      required:
+        - targetLanguage
+    TranslateArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        translatedText:
+          type: string
+        detectedLanguage:
+          type: string
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - translatedText
+        - detectedLanguage
+        - cacheHit
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
@@ -646,6 +674,44 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
         404:
           description: Article was not found
+  /ai/articles/{articleId}/translate:
+    post:
+      tags:
+        - AI
+      summary: Translate article content
+      description: Translates article content using Gemini (cached per article version and languages).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslateArticleRequest'
+      responses:
+        200:
+          description: Translation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslateArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
   /comment:
     get:
       tags:

@@ -8,9 +8,14 @@ export type AiTranslateRequestLog = {
   articleId: string;
   targetLanguage: string;
   sourceLanguage?: string;
+  provider: 'gemini';
+  model: string;
+  geminiCalled: boolean;
   cacheHit: boolean;
+  httpStatus: number;
   ok: boolean;
   durationMs: number;
+  createdAt: string;
   errorMessage?: string;
 };
 

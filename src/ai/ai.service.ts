@@ -1,4 +1,9 @@
-import { BadRequestException, BadGatewayException, Injectable } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  HttpException,
+  Injectable,
+} from '@nestjs/common';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { ArticleService } from '@/article/article.service';
 import { getErrorMessage } from '@/common/utils/error-details';
@@ -12,8 +17,12 @@ type CachedTranslation = {
   detectedLanguage: string;
 };
 
+const GEMINI_PROVIDER = 'gemini' as const;
+
 @Injectable()
 export class AiService {
+  private readonly geminiModel = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
+
   constructor(
     private readonly geminiService: GeminiService,
     private readonly articleService: ArticleService,
@@ -72,9 +81,14 @@ export class AiService {
         articleId: article.id,
         targetLanguage,
         sourceLanguage,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: false,
         cacheHit: true,
+        httpStatus: 200,
         ok: true,
         durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
       });
       return result;
     }
@@ -87,6 +101,7 @@ export class AiService {
       );
       const detectedLanguage = sourceLanguage ?? translated.detectedLanguage;
       if (!detectedLanguage) {
+        // provider failed to detect source language
         throw new BadGatewayException('AI provider did not return detected language');
       }
       this.aiCacheService.set(cacheKey, {
@@ -107,12 +122,18 @@ export class AiService {
         articleId: article.id,
         targetLanguage,
         sourceLanguage,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
         cacheHit: false,
+        httpStatus: 200,
         ok: true,
         durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
       });
       return result;
     } catch (error) {
+      const httpStatus = error instanceof HttpException ? error.getStatus() : 500;
       this.aiRequestLogService.logTranslateRequest({
         operation: 'translate_article',
         userId: actor.userId,
@@ -121,9 +142,14 @@ export class AiService {
         articleId: article.id,
         targetLanguage,
         sourceLanguage,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
         cacheHit: false,
+        httpStatus,
         ok: false,
         durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
         errorMessage: getErrorMessage(error),
       });
       throw error;
