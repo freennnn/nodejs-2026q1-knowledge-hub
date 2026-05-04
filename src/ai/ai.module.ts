@@ -5,6 +5,7 @@ import { AiService } from './ai.service';
 import { GeminiService } from './providers/gemini.service';
 import { AiCacheService } from './cache/ai-cache.service';
 import { HttpModule } from '@nestjs/axios';
+import { AiRequestLogService } from './tracking/ai-request-log.service';
 
 @Module({
   imports: [
@@ -15,6 +16,6 @@ import { HttpModule } from '@nestjs/axios';
     }),
   ],
   controllers: [AiController],
-  providers: [AiService, GeminiService, AiCacheService],
+  providers: [AiService, GeminiService, AiCacheService, AiRequestLogService],
 })
 export class AiModule {}

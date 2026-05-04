@@ -11,5 +11,5 @@ export class TranslateArticleResponseDto {
   detectedLanguage!: string;
 
   @ApiProperty()
-  cacheHit: boolean;
+  cacheHit!: boolean;
 }
