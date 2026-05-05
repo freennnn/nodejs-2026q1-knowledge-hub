@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { AiTokenUsageDto } from './ai-token-usage.dto';
 
 export class SummarizeArticleResponseDto {
   @ApiProperty()
@@ -19,4 +20,7 @@ export class SummarizeArticleResponseDto {
 
   @ApiProperty({ description: 'True if the response was served from the in-memory cache' })
   cacheHit!: boolean;
+
+  @ApiProperty({ type: AiTokenUsageDto })
+  tokenUsage!: AiTokenUsageDto;
 }

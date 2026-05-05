@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { AiTokenUsageDto } from './ai-token-usage.dto';
 
 export class GenericPromptResponseDto {
   @ApiProperty()
@@ -6,4 +7,7 @@ export class GenericPromptResponseDto {
 
   @ApiProperty()
   cacheHit!: boolean;
+
+  @ApiProperty({ type: AiTokenUsageDto })
+  tokenUsage!: AiTokenUsageDto;
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, ParseUUIDPipe, HttpCode, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Param, ParseUUIDPipe, HttpCode, UseGuards, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
 import { Roles } from '@/auth/decorators/roles.decorator';
@@ -13,6 +13,7 @@ import { AnalyzeArticleDto } from './dto/analyze-article.dto';
 import { AnalyzeArticleResponseDto } from './dto/analyze-article.response.dto';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
+import { AiUsageResponseDto } from './dto/ai-usage.response.dto';
 import { AiRateLimitGuard } from './guards/ai-rate-limit.guard';
 
 @ApiTags('ai')
@@ -97,5 +98,14 @@ export class AiController {
     @CurrentUser() actor: AuthUser,
   ): Promise<GenericPromptResponseDto> {
     return this.aiService.genericPrompt(dto, actor);
+  }
+
+  @ApiResponse({ status: 200, type: AiUsageResponseDto })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @Roles(UserRole.ADMIN)
+  @Get('/usage')
+  getUsage(): AiUsageResponseDto {
+    return this.aiService.getUsageSnapshot();
   }
 }

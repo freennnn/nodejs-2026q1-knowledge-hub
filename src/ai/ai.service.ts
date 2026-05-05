@@ -19,6 +19,7 @@ import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
+import { AiUsageService } from './tracking/ai-usage.service';
 
 type CachedTranslation = {
   translatedText: string;
@@ -39,6 +40,18 @@ type CachedAnalyze = {
   severity: 'info' | 'warning' | 'error';
 };
 
+type AiTokenUsage = {
+  prompt: number;
+  candidates: number;
+  total: number;
+};
+
+type OptionalAiTokenUsage = {
+  prompt?: number;
+  candidates?: number;
+  total?: number;
+};
+
 const GEMINI_PROVIDER = 'gemini' as const;
 
 @Injectable()
@@ -50,6 +63,7 @@ export class AiService {
     private readonly articleService: ArticleService,
     private readonly aiCacheService: AiCacheService,
     private readonly aiRequestLogService: AiRequestLogService,
+    private readonly aiUsageService: AiUsageService,
   ) {}
 
   private buildTranslateArticleCacheKey(
@@ -114,6 +128,7 @@ export class AiService {
     article: Article,
     summary: string,
     cacheHit: boolean,
+    tokenUsage: AiTokenUsage,
   ): SummarizeArticleResponseDto {
     return {
       articleId: article.id,
@@ -121,6 +136,7 @@ export class AiService {
       originalLength: article.content.length,
       summaryLength: summary.length,
       cacheHit,
+      tokenUsage,
     };
   }
 
@@ -130,6 +146,7 @@ export class AiService {
     suggestions: string[],
     severity: 'info' | 'warning' | 'error',
     cacheHit: boolean,
+    tokenUsage: AiTokenUsage,
   ): AnalyzeArticleResponseDto {
     return {
       articleId: article.id,
@@ -137,6 +154,17 @@ export class AiService {
       suggestions,
       severity,
       cacheHit,
+      tokenUsage,
+    };
+  }
+
+  private buildTokenUsage(usage?: OptionalAiTokenUsage): AiTokenUsage {
+    const prompt = usage?.prompt ?? 0;
+    const candidates = usage?.candidates ?? 0;
+    return {
+      prompt,
+      candidates,
+      total: prompt + candidates,
     };
   }
 
@@ -146,6 +174,7 @@ export class AiService {
     sourceLanguage: string | undefined,
     actor: AuthUser,
   ): Promise<TranslateArticleResponseDto> {
+    this.aiUsageService.record('translate_article');
     const startedAt = Date.now();
     const article = await this.articleService.findOne(id);
     if (!article.content.trim()) {
@@ -165,6 +194,7 @@ export class AiService {
         translatedText: cached.translatedText,
         detectedLanguage: cached.detectedLanguage,
         cacheHit: true,
+        tokenUsage: this.buildTokenUsage(),
       };
       this.aiRequestLogService.logTranslateRequest({
         operation: 'translate_article',
@@ -192,20 +222,22 @@ export class AiService {
         targetLanguage,
         sourceLanguage,
       );
-      const detectedLanguage = sourceLanguage ?? translated.detectedLanguage;
+      this.aiUsageService.recordTokens(translated.usage);
+      const detectedLanguage = sourceLanguage ?? translated.data.detectedLanguage;
       if (!detectedLanguage) {
         // provider failed to detect source language
         throw new BadGatewayException('AI provider did not return detected language');
       }
       this.aiCacheService.set(cacheKey, {
-        translatedText: translated.translatedText,
+        translatedText: translated.data.translatedText,
         detectedLanguage: detectedLanguage,
       });
       const result = {
         articleId: article.id,
-        translatedText: translated.translatedText,
+        translatedText: translated.data.translatedText,
         detectedLanguage: detectedLanguage,
         cacheHit: false,
+        tokenUsage: this.buildTokenUsage(translated.usage),
       };
       this.aiRequestLogService.logTranslateRequest({
         operation: 'translate_article',
@@ -255,6 +287,7 @@ export class AiService {
     style: string | undefined,
     actor: AuthUser,
   ): Promise<SummarizeArticleResponseDto> {
+    this.aiUsageService.record('summarize_article');
     const startedAt = Date.now();
     const article = await this.articleService.findOne(id);
     if (!article.content.trim()) {
@@ -271,7 +304,12 @@ export class AiService {
     );
     const cached = this.aiCacheService.get<CachedSummary>(cacheKey);
     if (cached) {
-      const result = this.buildSummarizeHttpResult(article, cached.summary, true);
+      const result = this.buildSummarizeHttpResult(
+        article,
+        cached.summary,
+        true,
+        this.buildTokenUsage(),
+      );
       this.aiRequestLogService.logSummarizeRequest({
         operation: 'summarize_article',
         userId: actor.userId,
@@ -298,10 +336,16 @@ export class AiService {
         effectiveMaxLength,
         style,
       );
+      this.aiUsageService.recordTokens(summarized.usage);
       this.aiCacheService.set(cacheKey, {
-        summary: summarized.summary,
+        summary: summarized.data.summary,
       });
-      const result = this.buildSummarizeHttpResult(article, summarized.summary, false);
+      const result = this.buildSummarizeHttpResult(
+        article,
+        summarized.data.summary,
+        false,
+        this.buildTokenUsage(summarized.usage),
+      );
       this.aiRequestLogService.logSummarizeRequest({
         operation: 'summarize_article',
         userId: actor.userId,
@@ -345,6 +389,7 @@ export class AiService {
   }
 
   async genericPrompt(dto: GenericPromptDto, actor: AuthUser): Promise<GenericPromptResponseDto> {
+    this.aiUsageService.record('generic_prompt');
     const startedAt = Date.now();
     const useCache = dto.useCache !== false;
     const promptHash = this.buildGenericPromptRequestPayloadHash(dto);
@@ -369,7 +414,7 @@ export class AiService {
           durationMs: Date.now() - startedAt,
           createdAt: new Date().toISOString(),
         });
-        return { text: cached.text, cacheHit: true };
+        return { text: cached.text, cacheHit: true, tokenUsage: this.buildTokenUsage() };
       }
     }
 
@@ -380,10 +425,11 @@ export class AiService {
         maxOutputTokens: dto.maxOutputTokens,
         temperature: dto.temperature,
       });
+      this.aiUsageService.recordTokens(generated.usage);
 
       if (useCache) {
         const cacheKey = this.buildGenericPromptCacheKey(promptHash);
-        this.aiCacheService.set(cacheKey, { text: generated.text });
+        this.aiCacheService.set(cacheKey, { text: generated.data.text });
       }
 
       this.aiRequestLogService.logGenericPromptRequest({
@@ -403,7 +449,11 @@ export class AiService {
         createdAt: new Date().toISOString(),
       });
 
-      return { text: generated.text, cacheHit: false };
+      return {
+        text: generated.data.text,
+        cacheHit: false,
+        tokenUsage: this.buildTokenUsage(generated.usage),
+      };
     } catch (error) {
       const httpStatus = error instanceof HttpException ? error.getStatus() : 500;
       this.aiRequestLogService.logGenericPromptRequest({
@@ -432,6 +482,7 @@ export class AiService {
     task: AnalyzeArticleTaskType | undefined,
     actor: AuthUser,
   ): Promise<AnalyzeArticleResponseDto> {
+    this.aiUsageService.record('analyze_article');
     const startedAt = Date.now();
     const article = await this.articleService.findOne(id);
     if (!article.content.trim()) {
@@ -453,6 +504,7 @@ export class AiService {
         cached.suggestions,
         cached.severity,
         true,
+        this.buildTokenUsage(),
       );
       this.aiRequestLogService.logAnalyzeRequest({
         operation: 'analyze_article',
@@ -475,14 +527,16 @@ export class AiService {
 
     try {
       const analyzed = await this.geminiService.analyzeArticleContent(article.content, effectiveTask);
-      this.aiCacheService.set(cacheKey, analyzed);
+      this.aiUsageService.recordTokens(analyzed.usage);
+      this.aiCacheService.set(cacheKey, analyzed.data);
 
       const result = this.buildAnalyzeHttpResult(
         article,
-        analyzed.analysis,
-        analyzed.suggestions,
-        analyzed.severity,
+        analyzed.data.analysis,
+        analyzed.data.suggestions,
+        analyzed.data.severity,
         false,
+        this.buildTokenUsage(analyzed.usage),
       );
       this.aiRequestLogService.logAnalyzeRequest({
         operation: 'analyze_article',
@@ -522,5 +576,9 @@ export class AiService {
       });
       throw error;
     }
+  }
+
+  getUsageSnapshot() {
+    return this.aiUsageService.getSnapshot();
   }
 }

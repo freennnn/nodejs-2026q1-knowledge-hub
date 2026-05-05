@@ -204,6 +204,32 @@ components:
         - suggestions
         - severity
         - cacheHit
+    AiUsageResponse:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+        byEndpoint:
+          type: object
+          additionalProperties:
+            type: integer
+        tokenTotals:
+          type: object
+          properties:
+            prompt:
+              type: integer
+            candidates:
+              type: integer
+            total:
+              type: integer
+          required:
+            - prompt
+            - candidates
+            - total
+      required:
+        - totalRequests
+        - byEndpoint
+        - tokenTotals
     GenericPromptRequest:
       type: object
       properties:
@@ -927,6 +953,23 @@ paths:
           description: Gemini rejected the request or returned an error
         503:
           description: Gemini unreachable, timed out, or rate limited
+  /ai/usage:
+    get:
+      tags:
+        - AI
+      summary: Get AI usage counters
+      description: Returns in-memory usage counters and aggregate Gemini token statistics since process startup.
+      responses:
+        200:
+          description: Current usage snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiUsageResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
   /comment:
     get:
       tags:

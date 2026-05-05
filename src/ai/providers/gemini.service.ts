@@ -23,6 +23,11 @@ type GeminiGenerateContentResponse = {
       }>;
     };
   }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
 };
 
 type TranslationResponse = {
@@ -44,6 +49,17 @@ type AnalyzeArticleResult = {
   severity: 'info' | 'warning' | 'error';
 };
 
+type GeminiUsageTokens = {
+  prompt?: number;
+  candidates?: number;
+  total?: number;
+};
+
+type GeminiResult<T> = {
+  data: T;
+  usage?: GeminiUsageTokens;
+};
+
 /** Generic prompt flow: tight caps for cost and abuse resistance (defense in depth vs DTO). */
 const GENERIC_PROMPT_MAX_USER_CHARS = 512;
 const GENERIC_PROMPT_MAX_SYSTEM_CHARS = 512;
@@ -62,12 +78,15 @@ export class GeminiService {
     text: string,
     targetLanguage: string,
     sourceLanguage?: string,
-  ): Promise<TranslationResponse> {
+  ): Promise<GeminiResult<TranslationResponse>> {
     const prompt = buildTranslatePrompt({ text, targetLanguage, sourceLanguage });
 
     try {
       const data = await this.postGenerateContent(prompt);
-      return this.parseTranslationResponse(data);
+      return {
+        data: this.parseTranslationResponse(data),
+        usage: this.extractUsageMetadata(data),
+      };
     } catch (error) {
       if (isAxiosError(error)) {
         throw this.mapAxiosErrorToHttpException(error);
@@ -76,12 +95,19 @@ export class GeminiService {
     }
   }
 
-  async summarizeText(text: string, maxLength: SummarizeMaxLength, style?: string): Promise<SummaryResponse> {
+  async summarizeText(
+    text: string,
+    maxLength: SummarizeMaxLength,
+    style?: string,
+  ): Promise<GeminiResult<SummaryResponse>> {
     const prompt = buildSummarizePrompt({ text, maxLength, style });
 
     try {
       const data = await this.postGenerateContent(prompt);
-      return this.parseSummaryResponse(data);
+      return {
+        data: this.parseSummaryResponse(data),
+        usage: this.extractUsageMetadata(data),
+      };
     } catch (error) {
       if (isAxiosError(error)) {
         throw this.mapAxiosErrorToHttpException(error);
@@ -95,7 +121,7 @@ export class GeminiService {
     systemInstruction?: string;
     maxOutputTokens?: number;
     temperature?: number;
-  }): Promise<GenericPromptResult> {
+  }): Promise<GeminiResult<GenericPromptResult>> {
     const userPrompt = this.truncateGenericPromptText(options.userPrompt, GENERIC_PROMPT_MAX_USER_CHARS);
     const systemInstruction = options.systemInstruction
       ? this.truncateGenericPromptText(options.systemInstruction, GENERIC_PROMPT_MAX_SYSTEM_CHARS)
@@ -119,7 +145,10 @@ export class GeminiService {
 
     try {
       const data = await this.postGenerateContent(prompt, generationConfig);
-      return this.parseGenericPromptResponse(data);
+      return {
+        data: this.parseGenericPromptResponse(data),
+        usage: this.extractUsageMetadata(data),
+      };
     } catch (error) {
       if (isAxiosError(error)) {
         throw this.mapAxiosErrorToHttpException(error);
@@ -131,12 +160,15 @@ export class GeminiService {
   async analyzeArticleContent(
     text: string,
     task: AnalyzeArticleTask,
-  ): Promise<AnalyzeArticleResult> {
+  ): Promise<GeminiResult<AnalyzeArticleResult>> {
     const prompt = buildAnalyzePrompt({ text, task });
 
     try {
       const data = await this.postGenerateContent(prompt);
-      return this.parseAnalyzeResponse(data);
+      return {
+        data: this.parseAnalyzeResponse(data),
+        usage: this.extractUsageMetadata(data),
+      };
     } catch (error) {
       if (isAxiosError(error)) {
         throw this.mapAxiosErrorToHttpException(error);
@@ -347,6 +379,21 @@ export class GeminiService {
     }
 
     return new BadGatewayException('Gemini API request failed');
+  }
+
+  private extractUsageMetadata(data: GeminiGenerateContentResponse): GeminiUsageTokens | undefined {
+    const usage = data.usageMetadata;
+    if (!usage) return undefined;
+
+    const prompt = typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : undefined;
+    const candidates =
+      typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : undefined;
+    const total = typeof usage.totalTokenCount === 'number' ? usage.totalTokenCount : undefined;
+
+    if (prompt === undefined && candidates === undefined && total === undefined) {
+      return undefined;
+    }
+    return { prompt, candidates, total };
   }
 
   private tryExtractGeminiErrorMessage(data: unknown): string | undefined {

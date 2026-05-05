@@ -6,6 +6,7 @@ import { GeminiService } from './providers/gemini.service';
 import { AiCacheService } from './cache/ai-cache.service';
 import { HttpModule } from '@nestjs/axios';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
+import { AiUsageService } from './tracking/ai-usage.service';
 import { AiRateLimitGuard } from './guards/ai-rate-limit.guard';
 
 @Module({
@@ -17,6 +18,6 @@ import { AiRateLimitGuard } from './guards/ai-rate-limit.guard';
     }),
   ],
   controllers: [AiController],
-  providers: [AiService, GeminiService, AiCacheService, AiRequestLogService, AiRateLimitGuard],
+  providers: [AiService, GeminiService, AiCacheService, AiRequestLogService, AiUsageService, AiRateLimitGuard],
 })
 export class AiModule {}
