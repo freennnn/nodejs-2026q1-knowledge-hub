@@ -54,7 +54,7 @@ export class AiController {
     @Body() dto: SummarizeArticleDto,
     @CurrentUser() actor: AuthUser,
   ): Promise<SummarizeArticleResponseDto> {
-    return this.aiService.summarizeArticle(articleId, dto.maxWords, dto.style, actor);
+    return this.aiService.summarizeArticle(articleId, dto.maxLength, dto.style, actor);
   }
 
   @ApiResponse({ status: 200, type: GenericPromptResponseDto })

@@ -7,10 +7,12 @@ import {
 import { createHash } from 'node:crypto';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { ArticleService } from '@/article/article.service';
+import { Article } from '@/common/types/article';
 import { getErrorMessage } from '@/common/utils/error-details';
 import { GeminiService } from './providers/gemini.service';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
+import type { SummarizeMaxLength } from './dto/summarize-max-length';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
@@ -23,7 +25,6 @@ type CachedTranslation = {
 
 type CachedSummary = {
   summary: string;
-  wordCount: number;
 };
 
 type CachedGenericPrompt = {
@@ -63,7 +64,7 @@ export class AiService {
   private buildSummarizeArticleCacheKey(
     articleId: string,
     articleUpdatedAt: number,
-    maxWords?: number,
+    maxLength: SummarizeMaxLength,
     style?: string,
   ): string {
     return [
@@ -72,7 +73,7 @@ export class AiService {
       'summarize',
       articleId,
       articleUpdatedAt,
-      maxWords ?? 'default',
+      maxLength,
       style ?? 'default',
     ].join(':');
   }
@@ -91,6 +92,20 @@ export class AiService {
 
   private buildGenericPromptCacheKey(promptHash: string): string {
     return ['ai', 'generic-prompt', promptHash].join(':');
+  }
+
+  private buildSummarizeHttpResult(
+    article: Article,
+    summary: string,
+    cacheHit: boolean,
+  ): SummarizeArticleResponseDto {
+    return {
+      articleId: article.id,
+      summary,
+      originalLength: article.content.length,
+      summaryLength: summary.length,
+      cacheHit,
+    };
   }
 
   async translateArticle(
@@ -204,7 +219,7 @@ export class AiService {
 
   async summarizeArticle(
     id: string,
-    maxWords: number | undefined,
+    maxLength: SummarizeMaxLength | undefined,
     style: string | undefined,
     actor: AuthUser,
   ): Promise<SummarizeArticleResponseDto> {
@@ -214,27 +229,24 @@ export class AiService {
       throw new BadRequestException('Article content is empty');
     }
 
+    const effectiveMaxLength = maxLength ?? 'medium';
+
     const cacheKey = this.buildSummarizeArticleCacheKey(
       article.id,
       article.updatedAt,
-      maxWords,
+      effectiveMaxLength,
       style,
     );
     const cached = this.aiCacheService.get<CachedSummary>(cacheKey);
     if (cached) {
-      const result = {
-        articleId: article.id,
-        summary: cached.summary,
-        wordCount: cached.wordCount,
-        cacheHit: true,
-      };
+      const result = this.buildSummarizeHttpResult(article, cached.summary, true);
       this.aiRequestLogService.logSummarizeRequest({
         operation: 'summarize_article',
         userId: actor.userId,
         login: actor.login,
         role: actor.role,
         articleId: article.id,
-        maxWords,
+        maxLength: effectiveMaxLength,
         style,
         provider: GEMINI_PROVIDER,
         model: this.geminiModel,
@@ -249,24 +261,22 @@ export class AiService {
     }
 
     try {
-      const summarized = await this.geminiService.summarizeText(article.content, maxWords, style);
+      const summarized = await this.geminiService.summarizeText(
+        article.content,
+        effectiveMaxLength,
+        style,
+      );
       this.aiCacheService.set(cacheKey, {
         summary: summarized.summary,
-        wordCount: summarized.wordCount,
       });
-      const result = {
-        articleId: article.id,
-        summary: summarized.summary,
-        wordCount: summarized.wordCount,
-        cacheHit: false,
-      };
+      const result = this.buildSummarizeHttpResult(article, summarized.summary, false);
       this.aiRequestLogService.logSummarizeRequest({
         operation: 'summarize_article',
         userId: actor.userId,
         login: actor.login,
         role: actor.role,
         articleId: article.id,
-        maxWords,
+        maxLength: effectiveMaxLength,
         style,
         provider: GEMINI_PROVIDER,
         model: this.geminiModel,
@@ -286,7 +296,7 @@ export class AiService {
         login: actor.login,
         role: actor.role,
         articleId: article.id,
-        maxWords,
+        maxLength: effectiveMaxLength,
         style,
         provider: GEMINI_PROVIDER,
         model: this.geminiModel,

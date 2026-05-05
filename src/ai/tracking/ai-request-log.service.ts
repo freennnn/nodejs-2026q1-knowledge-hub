@@ -25,7 +25,7 @@ export type AiSummarizeRequestLog = {
   login: string;
   role: string;
   articleId: string;
-  maxWords?: number;
+  maxLength: 'short' | 'medium' | 'detailed';
   style?: string;
   provider: 'gemini';
   model: string;

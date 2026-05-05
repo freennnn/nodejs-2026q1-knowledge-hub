@@ -141,13 +141,15 @@ components:
     SummarizeArticleRequest:
       type: object
       properties:
-        maxWords:
-          type: integer
-          minimum: 10
-          maximum: 2000
-          example: 120
+        maxLength:
+          type: string
+          enum: [short, medium, detailed]
+          default: medium
+          description: Omitted maxLength is treated as medium
         style:
           type: string
+          maxLength: 200
+          description: Optional presentation hint
           example: 'bullet_points'
     SummarizeArticleResponse:
       type: object
@@ -157,14 +159,19 @@ components:
           format: uuid
         summary:
           type: string
-        wordCount:
+        originalLength:
           type: integer
+          description: Article content length (UTF-16 code units)
+        summaryLength:
+          type: integer
+          description: Summary length (UTF-16 code units)
         cacheHit:
           type: boolean
       required:
         - articleId
         - summary
-        - wordCount
+        - originalLength
+        - summaryLength
         - cacheHit
     GenericPromptRequest:
       type: object

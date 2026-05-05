@@ -11,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 import { buildTranslatePrompt } from '../prompts/translate.prompt';
 import { buildSummarizePrompt } from '../prompts/summarize.prompt';
 import { buildGenericPrompt } from '../prompts/generic-prompt.prompt';
+import type { SummarizeMaxLength } from '../dto/summarize-max-length';
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -29,7 +30,6 @@ type TranslationResponse = {
 
 type SummaryResponse = {
   summary: string;
-  wordCount: number;
 };
 
 type GenericPromptResult = {
@@ -68,8 +68,8 @@ export class GeminiService {
     }
   }
 
-  async summarizeText(text: string, maxWords?: number, style?: string): Promise<SummaryResponse> {
-    const prompt = buildSummarizePrompt({ text, maxWords, style });
+  async summarizeText(text: string, maxLength: SummarizeMaxLength, style?: string): Promise<SummaryResponse> {
+    const prompt = buildSummarizePrompt({ text, maxLength, style });
 
     try {
       const data = await this.postGenerateContent(prompt);
@@ -217,16 +217,9 @@ export class GeminiService {
       if (typeof parsed.summary !== 'string' || !parsed.summary.trim()) {
         throw new Error('summary is missing');
       }
-      if (typeof parsed.wordCount !== 'number' || !Number.isFinite(parsed.wordCount)) {
-        throw new Error('wordCount is missing or invalid');
-      }
-      if (!Number.isInteger(parsed.wordCount)) {
-        throw new Error('wordCount must be an integer');
-      }
 
       return {
         summary: parsed.summary.trim(),
-        wordCount: parsed.wordCount,
       };
     } catch {
       throw new BadGatewayException('Gemini API returned invalid summary JSON');

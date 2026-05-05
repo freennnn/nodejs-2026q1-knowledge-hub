@@ -7,9 +7,16 @@ export class SummarizeArticleResponseDto {
   @ApiProperty()
   summary!: string;
 
-  @ApiProperty({ description: 'Estimated word count of the summary' })
-  wordCount!: number;
+  @ApiProperty({
+    description: 'Article content length in JavaScript string UTF-16 code units (same as String.prototype.length)',
+  })
+  originalLength!: number;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Summary length in JavaScript string UTF-16 code units (same as String.prototype.length)',
+  })
+  summaryLength!: number;
+
+  @ApiProperty({ description: 'True if the response was served from the in-memory cache' })
   cacheHit!: boolean;
 }

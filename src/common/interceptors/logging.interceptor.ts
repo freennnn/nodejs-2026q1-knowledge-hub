@@ -1,14 +1,15 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   type LoggerService,
   NestInterceptor,
 } from '@nestjs/common';
 import { type AbstractHttpAdapter, type HttpAdapterHost } from '@nestjs/core';
-import { Observable } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
 
 const REDACTED_VALUE = '[REDACTED]';
 const SENSITIVE_KEYS = ['password', 'token', 'authorization'];
@@ -73,6 +74,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const method = httpAdapter.getRequestMethod(req);
     const url = httpAdapter.getRequestUrl(req);
     const startMs = Date.now();
+    let statusCodeOverride: number | undefined;
 
     this.logger.log(
       'Incoming request',
@@ -86,9 +88,15 @@ export class LoggingInterceptor implements NestInterceptor {
     );
 
     return next.handle().pipe(
+      catchError((error: unknown) => {
+        if (error instanceof HttpException) {
+          statusCodeOverride = error.getStatus();
+        }
+        return throwError(() => error);
+      }),
       finalize(() => {
         const durationMs = Date.now() - startMs;
-        const statusCode = readStatusCode(res);
+        const statusCode = statusCodeOverride ?? readStatusCode(res);
         this.logger.log(
           'Outgoing response',
           {
