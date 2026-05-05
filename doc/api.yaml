@@ -755,6 +755,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         404:
           description: Article was not found
     delete:
@@ -771,6 +773,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         404:
           description: Article was not found
   /ai/articles/{articleId}/translate:
@@ -805,6 +809,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         404:
           description: Article was not found
         502:
@@ -915,6 +921,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         502:
           description: Gemini rejected the request or returned an error
         503:
