@@ -173,6 +173,37 @@ components:
         - originalLength
         - summaryLength
         - cacheHit
+    AnalyzeArticleRequest:
+      type: object
+      properties:
+        task:
+          type: string
+          enum: [review, bugs, optimize, explain]
+          default: review
+          description: Omitted task is treated as review
+    AnalyzeArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        analysis:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [info, warning, error]
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - analysis
+        - suggestions
+        - severity
+        - cacheHit
     GenericPromptRequest:
       type: object
       properties:
@@ -806,6 +837,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SummarizeArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/articles/{articleId}/analyze:
+    post:
+      tags:
+        - AI
+      summary: Analyze article content
+      description: Analyzes article content using Gemini (cached per article version and task).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeArticleRequest'
+      responses:
+        200:
+          description: Analyze result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeArticleResponse'
         400:
           description: Bad request. Invalid body or empty article content
         401:

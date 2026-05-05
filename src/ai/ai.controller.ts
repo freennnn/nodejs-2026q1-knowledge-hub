@@ -9,6 +9,8 @@ import { TranslateArticleDto } from './dto/translate-article.dto';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleDto } from './dto/summarize-article.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
+import { AnalyzeArticleDto } from './dto/analyze-article.dto';
+import { AnalyzeArticleResponseDto } from './dto/analyze-article.response.dto';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 
@@ -55,6 +57,24 @@ export class AiController {
     @CurrentUser() actor: AuthUser,
   ): Promise<SummarizeArticleResponseDto> {
     return this.aiService.summarizeArticle(articleId, dto.maxLength, dto.style, actor);
+  }
+
+  @ApiResponse({ status: 200, type: AnalyzeArticleResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed or empty article content' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({ status: 404, description: 'Article not found' })
+  @ApiResponse({ status: 502, description: 'Gemini rejected the request or returned an error' })
+  @ApiResponse({ status: 503, description: 'Gemini unreachable, timed out, or rate limited' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Post('/articles/:articleId/analyze')
+  async analyze(
+    @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
+    @Body() dto: AnalyzeArticleDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<AnalyzeArticleResponseDto> {
+    return this.aiService.analyzeArticle(articleId, dto.task, actor);
   }
 
   @ApiResponse({ status: 200, type: GenericPromptResponseDto })

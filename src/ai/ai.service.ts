@@ -13,6 +13,8 @@ import { GeminiService } from './providers/gemini.service';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
 import type { SummarizeMaxLength } from './dto/summarize-max-length';
+import { AnalyzeArticleTask, type AnalyzeArticleTask as AnalyzeArticleTaskType } from './dto/analyze-article.dto';
+import { AnalyzeArticleResponseDto } from './dto/analyze-article.response.dto';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
@@ -29,6 +31,12 @@ type CachedSummary = {
 
 type CachedGenericPrompt = {
   text: string;
+};
+
+type CachedAnalyze = {
+  analysis: string;
+  suggestions: string[];
+  severity: 'info' | 'warning' | 'error';
 };
 
 const GEMINI_PROVIDER = 'gemini' as const;
@@ -90,6 +98,14 @@ export class AiService {
     return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
   }
 
+  private buildAnalyzeArticleCacheKey(
+    articleId: string,
+    articleUpdatedAt: number,
+    task: AnalyzeArticleTaskType,
+  ): string {
+    return ['ai', 'article', 'analyze', articleId, articleUpdatedAt, task].join(':');
+  }
+
   private buildGenericPromptCacheKey(promptHash: string): string {
     return ['ai', 'generic-prompt', promptHash].join(':');
   }
@@ -104,6 +120,22 @@ export class AiService {
       summary,
       originalLength: article.content.length,
       summaryLength: summary.length,
+      cacheHit,
+    };
+  }
+
+  private buildAnalyzeHttpResult(
+    article: Article,
+    analysis: string,
+    suggestions: string[],
+    severity: 'info' | 'warning' | 'error',
+    cacheHit: boolean,
+  ): AnalyzeArticleResponseDto {
+    return {
+      articleId: article.id,
+      analysis,
+      suggestions,
+      severity,
       cacheHit,
     };
   }
@@ -381,6 +413,103 @@ export class AiService {
         role: actor.role,
         promptHash,
         useCache,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
+        cacheHit: false,
+        httpStatus,
+        ok: false,
+        durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
+        errorMessage: getErrorMessage(error),
+      });
+      throw error;
+    }
+  }
+
+  async analyzeArticle(
+    id: string,
+    task: AnalyzeArticleTaskType | undefined,
+    actor: AuthUser,
+  ): Promise<AnalyzeArticleResponseDto> {
+    const startedAt = Date.now();
+    const article = await this.articleService.findOne(id);
+    if (!article.content.trim()) {
+      throw new BadRequestException('Article content is empty');
+    }
+
+    const effectiveTask = task ?? AnalyzeArticleTask.REVIEW;
+
+    const cacheKey = this.buildAnalyzeArticleCacheKey(
+      article.id,
+      article.updatedAt,
+      effectiveTask,
+    );
+    const cached = this.aiCacheService.get<CachedAnalyze>(cacheKey);
+    if (cached) {
+      const result = this.buildAnalyzeHttpResult(
+        article,
+        cached.analysis,
+        cached.suggestions,
+        cached.severity,
+        true,
+      );
+      this.aiRequestLogService.logAnalyzeRequest({
+        operation: 'analyze_article',
+        userId: actor.userId,
+        login: actor.login,
+        role: actor.role,
+        articleId: article.id,
+        task: effectiveTask,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: false,
+        cacheHit: true,
+        httpStatus: 200,
+        ok: true,
+        durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
+      });
+      return result;
+    }
+
+    try {
+      const analyzed = await this.geminiService.analyzeArticleContent(article.content, effectiveTask);
+      this.aiCacheService.set(cacheKey, analyzed);
+
+      const result = this.buildAnalyzeHttpResult(
+        article,
+        analyzed.analysis,
+        analyzed.suggestions,
+        analyzed.severity,
+        false,
+      );
+      this.aiRequestLogService.logAnalyzeRequest({
+        operation: 'analyze_article',
+        userId: actor.userId,
+        login: actor.login,
+        role: actor.role,
+        articleId: article.id,
+        task: effectiveTask,
+        provider: GEMINI_PROVIDER,
+        model: this.geminiModel,
+        geminiCalled: true,
+        cacheHit: false,
+        httpStatus: 200,
+        ok: true,
+        durationMs: Date.now() - startedAt,
+        createdAt: new Date().toISOString(),
+      });
+      return result;
+    } catch (error) {
+      const httpStatus = error instanceof HttpException ? error.getStatus() : 500;
+      this.aiRequestLogService.logAnalyzeRequest({
+        operation: 'analyze_article',
+        userId: actor.userId,
+        login: actor.login,
+        role: actor.role,
+        articleId: article.id,
+        task: effectiveTask,
         provider: GEMINI_PROVIDER,
         model: this.geminiModel,
         geminiCalled: true,

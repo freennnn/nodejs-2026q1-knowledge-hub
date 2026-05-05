@@ -11,7 +11,9 @@ import { firstValueFrom } from 'rxjs';
 import { buildTranslatePrompt } from '../prompts/translate.prompt';
 import { buildSummarizePrompt } from '../prompts/summarize.prompt';
 import { buildGenericPrompt } from '../prompts/generic-prompt.prompt';
+import { buildAnalyzePrompt } from '../prompts/analyze.prompt';
 import type { SummarizeMaxLength } from '../dto/summarize-max-length';
+import type { AnalyzeArticleTask } from '../dto/analyze-article.dto';
 
 type GeminiGenerateContentResponse = {
   candidates?: Array<{
@@ -34,6 +36,12 @@ type SummaryResponse = {
 
 type GenericPromptResult = {
   text: string;
+};
+
+type AnalyzeArticleResult = {
+  analysis: string;
+  suggestions: string[];
+  severity: 'info' | 'warning' | 'error';
 };
 
 /** Generic prompt flow: tight caps for cost and abuse resistance (defense in depth vs DTO). */
@@ -112,6 +120,23 @@ export class GeminiService {
     try {
       const data = await this.postGenerateContent(prompt, generationConfig);
       return this.parseGenericPromptResponse(data);
+    } catch (error) {
+      if (isAxiosError(error)) {
+        throw this.mapAxiosErrorToHttpException(error);
+      }
+      throw error;
+    }
+  }
+
+  async analyzeArticleContent(
+    text: string,
+    task: AnalyzeArticleTask,
+  ): Promise<AnalyzeArticleResult> {
+    const prompt = buildAnalyzePrompt({ text, task });
+
+    try {
+      const data = await this.postGenerateContent(prompt);
+      return this.parseAnalyzeResponse(data);
     } catch (error) {
       if (isAxiosError(error)) {
         throw this.mapAxiosErrorToHttpException(error);
@@ -248,6 +273,46 @@ export class GeminiService {
       };
     } catch {
       throw new BadGatewayException('Gemini API returned invalid generic prompt JSON');
+    }
+  }
+
+  private parseAnalyzeResponse(data: GeminiGenerateContentResponse): AnalyzeArticleResult {
+    const responseText = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter((part): part is string => Boolean(part))
+      .join('')
+      .trim();
+
+    if (!responseText) {
+      throw new BadGatewayException('Gemini API returned an empty response');
+    }
+
+    try {
+      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as {
+        analysis?: unknown;
+        suggestions?: unknown;
+        severity?: unknown;
+      };
+
+      if (typeof parsed.analysis !== 'string' || !parsed.analysis.trim()) {
+        throw new Error('analysis is missing');
+      }
+
+      if (!Array.isArray(parsed.suggestions) || parsed.suggestions.some((item) => typeof item !== 'string')) {
+        throw new Error('suggestions must be string[]');
+      }
+
+      if (parsed.severity !== 'info' && parsed.severity !== 'warning' && parsed.severity !== 'error') {
+        throw new Error('severity must be info|warning|error');
+      }
+
+      return {
+        analysis: parsed.analysis.trim(),
+        suggestions: parsed.suggestions.map((item) => item.trim()).filter((item) => item.length > 0),
+        severity: parsed.severity,
+      };
+    } catch {
+      throw new BadGatewayException('Gemini API returned invalid analyze JSON');
     }
   }
 

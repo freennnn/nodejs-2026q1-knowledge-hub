@@ -56,6 +56,24 @@ export type AiGenericPromptRequestLog = {
   errorMessage?: string;
 };
 
+export type AiAnalyzeRequestLog = {
+  operation: 'analyze_article';
+  userId: string;
+  login: string;
+  role: string;
+  articleId: string;
+  task: 'review' | 'bugs' | 'optimize' | 'explain';
+  provider: 'gemini';
+  model: string;
+  geminiCalled: boolean;
+  cacheHit: boolean;
+  httpStatus: number;
+  ok: boolean;
+  durationMs: number;
+  createdAt: string;
+  errorMessage?: string;
+};
+
 @Injectable()
 export class AiRequestLogService {
   private readonly logger = new Logger(AiRequestLogService.name);
@@ -70,5 +88,9 @@ export class AiRequestLogService {
 
   logGenericPromptRequest(entry: AiGenericPromptRequestLog): void {
     this.logger.log('AI generic prompt request', entry);
+  }
+
+  logAnalyzeRequest(entry: AiAnalyzeRequestLog): void {
+    this.logger.log('AI analyze request', entry);
   }
 }
