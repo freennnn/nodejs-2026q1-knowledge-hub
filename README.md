@@ -106,6 +106,19 @@ With this DB-only flow, Prisma generation and migrations are manual because the 
 
 Use this section to run the app end-to-end and try all AI routes quickly.
 
+Gemini API key setup (step-by-step):
+
+1. Open [Google AI Studio](https://aistudio.google.com/).
+2. Sign in with your Google account.
+3. Open **Get API key**.
+4. Create a new API key (or reuse an existing one).
+5. Copy the key value.
+6. Paste it into your local `.env` as `GEMINI_API_KEY=...`.
+
+Gemini model used by this service:
+
+- `GEMINI_MODEL` (default in project: `gemini-2.5-flash`)
+
 1. Copy env and set Gemini key:
 
 ```
@@ -232,6 +245,13 @@ curl -s http://localhost:4000/ai/usage \
 ```
 {"totalRequests":19,"byEndpoint":{"translate_article":4,"summarize_article":5,"analyze_article":8,"generic_prompt":2},"tokenTotals":{"prompt":367,"candidates":282,"total":649}}%
 ```
+
+## Known limitations
+
+- In-memory AI cache is reset on server restart.
+- In-memory conversation sessions for `/ai/generate` are reset on server restart.
+- Conversation context is short-term by design and keeps only the last 3 turns per session.
+- Gemini free tier can return temporary upstream overload errors (for example high-demand responses) and latency can vary by region/load.
 
 Run tests in another terminal after the DB is migrated:
 
