@@ -8,6 +8,7 @@ import { HttpModule } from '@nestjs/axios';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
 import { AiUsageService } from './tracking/ai-usage.service';
 import { AiRateLimitGuard } from './guards/ai-rate-limit.guard';
+import { AiConversationContextService } from './cache/ai-conversation-context.service';
 
 @Module({
   imports: [
@@ -18,6 +19,14 @@ import { AiRateLimitGuard } from './guards/ai-rate-limit.guard';
     }),
   ],
   controllers: [AiController],
-  providers: [AiService, GeminiService, AiCacheService, AiRequestLogService, AiUsageService, AiRateLimitGuard],
+  providers: [
+    AiService,
+    GeminiService,
+    AiCacheService,
+    AiConversationContextService,
+    AiRequestLogService,
+    AiUsageService,
+    AiRateLimitGuard,
+  ],
 })
 export class AiModule {}

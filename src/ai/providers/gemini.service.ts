@@ -124,11 +124,19 @@ export class GeminiService {
     systemInstruction?: string;
     maxOutputTokens?: number;
     temperature?: number;
+    conversationHistory?: Array<{
+      userPrompt: string;
+      assistantText: string;
+    }>;
   }): Promise<GeminiResult<GenericPromptResult>> {
     const userPrompt = this.truncateGenericPromptText(options.userPrompt, GENERIC_PROMPT_MAX_USER_CHARS);
     const systemInstruction = options.systemInstruction
       ? this.truncateGenericPromptText(options.systemInstruction, GENERIC_PROMPT_MAX_SYSTEM_CHARS)
       : undefined;
+    const conversationHistory = options.conversationHistory?.map((turn) => ({
+      userPrompt: this.truncateGenericPromptText(turn.userPrompt, 300),
+      assistantText: this.truncateGenericPromptText(turn.assistantText, 300),
+    }));
 
     const maxOutputTokens = this.clampGenericPromptMaxOutputTokens(options.maxOutputTokens);
 
@@ -137,6 +145,7 @@ export class GeminiService {
       systemInstruction,
       maxOutputTokens,
       temperature: options.temperature,
+      conversationHistory,
     });
 
     const generationConfig: Record<string, unknown> = {
@@ -225,6 +234,7 @@ export class GeminiService {
     let attempt = 0;
     while (true) {
       try {
+        
         const { data } = await firstValueFrom(
           this.httpService.post<GeminiGenerateContentResponse>(url, body, {
             headers: {
@@ -238,6 +248,7 @@ export class GeminiService {
       } catch (error) {
         if (isAxiosError(error) && error.response?.status === 429 && attempt < GEMINI_429_MAX_RETRIES) {
           const baseBackoffMs = GEMINI_429_BASE_BACKOFF_MS * 2 ** attempt;
+          // spreading out retries
           const jitterMs = Math.floor(Math.random() * GEMINI_429_MAX_JITTER_MS);
           await this.sleep(baseBackoffMs + jitterMs);
           attempt += 1;

@@ -46,4 +46,14 @@ export class GenericPromptDto {
   @IsBoolean()
   @IsOptional()
   useCache?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'd7b57f9d-319f-46a1-9f61-980314ad06a8',
+    description:
+      'Conversation session id for short-term context memory. If omitted, a new session is created.',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  sessionId?: string;
 }

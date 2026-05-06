@@ -4,7 +4,7 @@ import {
   HttpException,
   Injectable,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { ArticleService } from '@/article/article.service';
 import { Article } from '@/common/types/article';
@@ -18,6 +18,7 @@ import { AnalyzeArticleResponseDto } from './dto/analyze-article.response.dto';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
+import { AiConversationContextService, type ConversationTurn } from './cache/ai-conversation-context.service';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
 import { AiUsageService } from './tracking/ai-usage.service';
 
@@ -53,6 +54,7 @@ type OptionalAiTokenUsage = {
 };
 
 const GEMINI_PROVIDER = 'gemini' as const;
+const GENERIC_PROMPT_CONTEXT_LIMIT = 3;
 
 @Injectable()
 export class AiService {
@@ -62,6 +64,7 @@ export class AiService {
     private readonly geminiService: GeminiService,
     private readonly articleService: ArticleService,
     private readonly aiCacheService: AiCacheService,
+    private readonly aiConversationContextService: AiConversationContextService,
     private readonly aiRequestLogService: AiRequestLogService,
     private readonly aiUsageService: AiUsageService,
   ) {}
@@ -100,13 +103,19 @@ export class AiService {
     ].join(':');
   }
 
-  private buildGenericPromptRequestPayloadHash(dto: GenericPromptDto): string {
+  private buildGenericPromptRequestPayloadHash(
+    dto: GenericPromptDto,
+    sessionId: string,
+    conversationHistory: ConversationTurn[],
+  ): string {
     const payload = {
       model: this.geminiModel,
       prompt: dto.prompt,
       systemInstruction: dto.systemInstruction ?? null,
       maxOutputTokens: dto.maxOutputTokens ?? null,
       temperature: dto.temperature ?? null,
+      sessionId,
+      conversationHistory,
     };
 
     return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -392,12 +401,20 @@ export class AiService {
     this.aiUsageService.record('generic_prompt');
     const startedAt = Date.now();
     const useCache = dto.useCache !== false;
-    const promptHash = this.buildGenericPromptRequestPayloadHash(dto);
+    const sessionId = dto.sessionId?.trim() || randomUUID();
+    const conversationHistory = this.aiConversationContextService
+      .getRecentTurns(actor.userId, sessionId)
+      .slice(-GENERIC_PROMPT_CONTEXT_LIMIT);
+    const promptHash = this.buildGenericPromptRequestPayloadHash(dto, sessionId, conversationHistory);
 
     if (useCache) {
       const cacheKey = this.buildGenericPromptCacheKey(promptHash);
       const cached = this.aiCacheService.get<CachedGenericPrompt>(cacheKey);
       if (cached) {
+        this.aiConversationContextService.appendTurn(actor.userId, sessionId, {
+          userPrompt: dto.prompt,
+          assistantText: cached.text,
+        });
         this.aiRequestLogService.logGenericPromptRequest({
           operation: 'generic_prompt',
           userId: actor.userId,
@@ -414,7 +431,12 @@ export class AiService {
           durationMs: Date.now() - startedAt,
           createdAt: new Date().toISOString(),
         });
-        return { text: cached.text, cacheHit: true, tokenUsage: this.buildTokenUsage() };
+        return {
+          text: cached.text,
+          cacheHit: true,
+          tokenUsage: this.buildTokenUsage(),
+          sessionId,
+        };
       }
     }
 
@@ -424,8 +446,13 @@ export class AiService {
         systemInstruction: dto.systemInstruction,
         maxOutputTokens: dto.maxOutputTokens,
         temperature: dto.temperature,
+        conversationHistory,
       });
       this.aiUsageService.recordTokens(generated.usage);
+      this.aiConversationContextService.appendTurn(actor.userId, sessionId, {
+        userPrompt: dto.prompt,
+        assistantText: generated.data.text,
+      });
 
       if (useCache) {
         const cacheKey = this.buildGenericPromptCacheKey(promptHash);
@@ -453,6 +480,7 @@ export class AiService {
         text: generated.data.text,
         cacheHit: false,
         tokenUsage: this.buildTokenUsage(generated.usage),
+        sessionId,
       };
     } catch (error) {
       const httpStatus = error instanceof HttpException ? error.getStatus() : 500;

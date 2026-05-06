@@ -196,6 +196,32 @@ curl -s -X POST "http://localhost:4000/ai/generate" \
 {"text":"Warsaw is the capital and largest city of Poland. It was almost completely destroyed during World War II but meticulously rebuilt, including its historic Old Town, which is a UNESCO World Heritage Site. The city is also a major economic and cultural hub in Central Europe.","cacheHit":false,"tokenUsage":{"prompt":71,"candidates":56,"total":127}}%
 ```
 
+Generic prompt with conversation context (same `sessionId` on follow-up):
+
+```
+curl -s -X POST "http://localhost:4000/ai/generate" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"List 3 concise facts about Brest in JSON."}'
+```
+
+```
+{"text":"Brest is a major French military port city in Brittany. It was largely destroyed during WWII and extensively rebuilt. The city is also home to Océanopolis, a prominent ocean discovery center.","cacheHit":false,"tokenUsage":{"prompt":71,"candidates":43,"total":114},"sessionId":"640d47db-5714-454b-b178-d66f384c1135"}%
+```
+
+Successful follow-up response example with same `sessionId`:
+
+```
+curl -s -X POST "http://localhost:4000/ai/generate" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"List 2 more facts about Brest in JSON.", "sessionId":"640d47db-5714-454b-b178-d66f384c1135"}'
+```
+
+```
+{"text":"Brest is home to the University of Western Brittany (UBO). The Pont de Recouvrance in Brest is one of the largest vertical-lift bridges in Europe.","cacheHit":false,"tokenUsage":{"prompt":144,"candidates":39,"total":183},"sessionId":"640d47db-5714-454b-b178-d66f384c1135"}%
+```
+
 Optional usage stats (admin only):
 
 ```
