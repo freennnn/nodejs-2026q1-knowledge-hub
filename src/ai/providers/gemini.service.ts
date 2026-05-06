@@ -65,6 +65,9 @@ const GENERIC_PROMPT_MAX_USER_CHARS = 512;
 const GENERIC_PROMPT_MAX_SYSTEM_CHARS = 512;
 const GENERIC_PROMPT_MAX_OUTPUT_TOKENS = 512;
 const GENERIC_PROMPT_MIN_OUTPUT_TOKENS = 16;
+const GEMINI_429_MAX_RETRIES = 3;
+const GEMINI_429_BASE_BACKOFF_MS = 500;
+const GEMINI_429_MAX_JITTER_MS = 250;
 
 @Injectable()
 export class GeminiService {
@@ -219,16 +222,30 @@ export class GeminiService {
       body.generationConfig = generationConfig;
     }
 
-    const { data } = await firstValueFrom(
-      this.httpService.post<GeminiGenerateContentResponse>(url, body, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-      }),
-    );
+    let attempt = 0;
+    while (true) {
+      try {
+        const { data } = await firstValueFrom(
+          this.httpService.post<GeminiGenerateContentResponse>(url, body, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+          }),
+        );
 
-    return data;
+        return data;
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 429 && attempt < GEMINI_429_MAX_RETRIES) {
+          const baseBackoffMs = GEMINI_429_BASE_BACKOFF_MS * 2 ** attempt;
+          const jitterMs = Math.floor(Math.random() * GEMINI_429_MAX_JITTER_MS);
+          await this.sleep(baseBackoffMs + jitterMs);
+          attempt += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
   }
 
   private parseTranslationResponse(data: GeminiGenerateContentResponse): TranslationResponse {
@@ -364,6 +381,10 @@ export class GeminiService {
     const status = error.response.status;
     const upstreamMessage = this.tryExtractGeminiErrorMessage(error.response.data);
 
+    if (status === 401 || status === 403 || this.isLikelyApiKeyFailure(upstreamMessage)) {
+      return new InternalServerErrorException('AI provider authentication failed');
+    }
+
     if (status === 429) {
       return new ServiceUnavailableException('Gemini API rate limit exceeded');
     }
@@ -406,6 +427,15 @@ export class GeminiService {
     const errorRecord = error as Record<string, unknown>;
     const message = errorRecord['message'];
     return typeof message === 'string' && message.trim().length > 0 ? message : undefined;
+  }
+
+  private isLikelyApiKeyFailure(message: string | undefined): boolean {
+    if (!message) return false;
+    return /(api key|invalid key|authentication failed|unauthenticated|permission denied)/i.test(message);
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private extractJsonObjectFromModelText(responseText: string): string {
