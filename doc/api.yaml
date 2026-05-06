@@ -110,6 +110,159 @@ components:
         - id
         - content
         - articleId
+    TranslateArticleRequest:
+      type: object
+      properties:
+        targetLanguage:
+          type: string
+          example: 'fr'
+        sourceLanguage:
+          type: string
+          example: 'en'
+      required:
+        - targetLanguage
+    TranslateArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        translatedText:
+          type: string
+        detectedLanguage:
+          type: string
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - translatedText
+        - detectedLanguage
+        - cacheHit
+    SummarizeArticleRequest:
+      type: object
+      properties:
+        maxLength:
+          type: string
+          enum: [short, medium, detailed]
+          default: medium
+          description: Omitted maxLength is treated as medium
+        style:
+          type: string
+          maxLength: 200
+          description: Optional presentation hint
+          example: 'bullet_points'
+    SummarizeArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        originalLength:
+          type: integer
+          description: Article content length (UTF-16 code units)
+        summaryLength:
+          type: integer
+          description: Summary length (UTF-16 code units)
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - summary
+        - originalLength
+        - summaryLength
+        - cacheHit
+    AnalyzeArticleRequest:
+      type: object
+      properties:
+        task:
+          type: string
+          enum: [review, bugs, optimize, explain]
+          default: review
+          description: Omitted task is treated as review
+    AnalyzeArticleResponse:
+      type: object
+      properties:
+        articleId:
+          type: string
+          format: uuid
+        analysis:
+          type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        severity:
+          type: string
+          enum: [info, warning, error]
+        cacheHit:
+          type: boolean
+      required:
+        - articleId
+        - analysis
+        - suggestions
+        - severity
+        - cacheHit
+    AiUsageResponse:
+      type: object
+      properties:
+        totalRequests:
+          type: integer
+        byEndpoint:
+          type: object
+          additionalProperties:
+            type: integer
+        tokenTotals:
+          type: object
+          properties:
+            prompt:
+              type: integer
+            candidates:
+              type: integer
+            total:
+              type: integer
+          required:
+            - prompt
+            - candidates
+            - total
+      required:
+        - totalRequests
+        - byEndpoint
+        - tokenTotals
+    GenericPromptRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 512
+        systemInstruction:
+          type: string
+          maxLength: 2000
+        maxOutputTokens:
+          type: integer
+          minimum: 16
+          maximum: 512
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 1
+        useCache:
+          type: boolean
+          description: If true (default), identical requests may return cached responses
+      required:
+        - prompt
+    GenericPromptResponse:
+      type: object
+      properties:
+        text:
+          type: string
+        cacheHit:
+          type: boolean
+      required:
+        - text
+        - cacheHit
   responses:
     UnauthorizedError:
       description: Access token is missing or invalid
@@ -628,6 +781,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         404:
           description: Article was not found
     delete:
@@ -644,8 +799,177 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         403:
           $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
         404:
           description: Article was not found
+  /ai/articles/{articleId}/translate:
+    post:
+      tags:
+        - AI
+      summary: Translate article content
+      description: Translates article content using Gemini (cached per article version and languages).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslateArticleRequest'
+      responses:
+        200:
+          description: Translation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslateArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/articles/{articleId}/summarize:
+    post:
+      tags:
+        - AI
+      summary: Summarize article content
+      description: Summarizes article content using Gemini (cached per article version and options).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummarizeArticleRequest'
+      responses:
+        200:
+          description: Summary result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SummarizeArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/articles/{articleId}/analyze:
+    post:
+      tags:
+        - AI
+      summary: Analyze article content
+      description: Analyzes article content using Gemini (cached per article version and task).
+      parameters:
+        - name: articleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeArticleRequest'
+      responses:
+        200:
+          description: Analyze result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeArticleResponse'
+        400:
+          description: Bad request. Invalid body or empty article content
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        404:
+          description: Article was not found
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/generate:
+    post:
+      tags:
+        - AI
+      summary: Generic prompt completion
+      description: >
+        Free-form Gemini completion for an arbitrary prompt (`generic prompt` flow). Route remains `/ai/generate` for compatibility.
+        Responses may be cached when useCache is true (default). Cache keys use a hash of request fields (including configured model name);
+        prompts are not logged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPromptRequest'
+      responses:
+        200:
+          description: Model text result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericPromptResponse'
+        400:
+          description: Bad request. Invalid body
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
+        429:
+          description: Too many AI requests. Retry after the value in Retry-After header
+        502:
+          description: Gemini rejected the request or returned an error
+        503:
+          description: Gemini unreachable, timed out, or rate limited
+  /ai/usage:
+    get:
+      tags:
+        - AI
+      summary: Get AI usage counters
+      description: Returns in-memory usage counters and aggregate Gemini token statistics since process startup.
+      responses:
+        200:
+          description: Current usage snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiUsageResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedError'
+        403:
+          $ref: '#/components/responses/ForbiddenError'
   /comment:
     get:
       tags:

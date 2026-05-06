@@ -35,7 +35,7 @@ export class ArticleService {
       },
     });
 
-    return articles.map((article) => this.toResponse(article));
+    return articles.map((article) => this.toArticle(article));
   }
 
   async findOne(id: string): Promise<Article> {
@@ -46,7 +46,7 @@ export class ArticleService {
       },
     });
     if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
-    return this.toResponse(article);
+    return this.toArticle(article);
   }
 
   async create(dto: CreateArticleDto, actor: AuthUser): Promise<Article> {
@@ -73,7 +73,7 @@ export class ArticleService {
       },
     });
 
-    return this.toResponse(created);
+    return this.toArticle(created);
   }
 
   async update(id: string, dto: UpdateArticleDto, actor: AuthUser): Promise<Article> {
@@ -82,9 +82,11 @@ export class ArticleService {
       select: { id: true, authorId: true },
     });
     if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
+    // Editors can only update articles they currently own.
     if (actor.role === UserRole.EDITOR && article.authorId !== actor.userId) {
       throw new ForbiddenException('Insufficient permissions for this operation');
     }
+    // Editors cannot transfer or remove ownership while updating.
     if (
       actor.role === UserRole.EDITOR &&
       dto.authorId !== undefined &&
@@ -117,7 +119,7 @@ export class ArticleService {
       },
     });
 
-    return this.toResponse(updated);
+    return this.toArticle(updated);
   }
 
   async remove(id: string, actor: AuthUser): Promise<void> {
@@ -136,7 +138,7 @@ export class ArticleService {
     });
   }
 
-  private toResponse(article: PrismaArticle & { tags: Array<{ name: string }> }): Article {
+  private toArticle(article: PrismaArticle & { tags: Array<{ name: string }> }): Article {
     return {
       id: article.id,
       title: article.title,

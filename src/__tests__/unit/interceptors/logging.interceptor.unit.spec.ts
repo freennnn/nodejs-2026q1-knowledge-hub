@@ -1,6 +1,6 @@
-import { type CallHandler, type LoggerService } from '@nestjs/common';
+import { HttpException, type CallHandler, type LoggerService } from '@nestjs/common';
 import { type HttpAdapterHost } from '@nestjs/core';
-import { lastValueFrom, of } from 'rxjs';
+import { lastValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { LoggingInterceptor, sanitizeLogData } from '@/common/interceptors/logging.interceptor';
 import { createHttpExecutionContext } from '../helpers/execution-context';
@@ -102,6 +102,28 @@ describe('LoggingInterceptor', () => {
       'Outgoing response',
       expect.objectContaining({
         statusCode: undefined,
+      }),
+      'LoggingInterceptor',
+    );
+  });
+
+  it('logs HttpException status on error path', async () => {
+    const logger = createLoggerMock();
+    const interceptor = new LoggingInterceptor(createAdapterHost(), logger as LoggerService);
+    const context = createHttpExecutionContext({
+      request: {},
+      response: { statusCode: 200 },
+    });
+    const next: CallHandler = {
+      handle: () => throwError(() => new HttpException('Bad gateway', 502)),
+    };
+
+    await expect(lastValueFrom(interceptor.intercept(context, next))).rejects.toBeInstanceOf(HttpException);
+
+    expect(logger.log).toHaveBeenCalledWith(
+      'Outgoing response',
+      expect.objectContaining({
+        statusCode: 502,
       }),
       'LoggingInterceptor',
     );

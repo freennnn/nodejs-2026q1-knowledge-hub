@@ -37,6 +37,14 @@ async function bootstrap() {
       .setTitle('Knowledge Hub API')
       .setDescription('Nest.js Knowledge Hub REST API')
       .setVersion('1.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+        'access-token',
+      )
       .build();
     const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
 
