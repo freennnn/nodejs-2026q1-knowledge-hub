@@ -57,7 +57,12 @@ describe('QdrantVectorStoreService', () => {
     });
     const count = vi.fn().mockResolvedValue({ count: 0 });
     const del = vi.fn();
-    const client = { getCollections, createCollection: vi.fn(), count, delete: del } as unknown as QdrantClient;
+    const client = {
+      getCollections,
+      createCollection: vi.fn(),
+      count,
+      delete: del,
+    } as unknown as QdrantClient;
     const service = new QdrantVectorStoreService(testEnv(), client);
 
     const removed = await service.deleteByArticleId('00000000-0000-4000-8000-000000000001');
