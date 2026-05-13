@@ -15,7 +15,11 @@ const LENGTH_GUIDANCE: Record<SummarizeMaxLength, string> = {
     'Use a fuller summary: roughly 300–450 words (or a structured outline if that fits better). Include nuance and important context where useful.',
 };
 
-export function buildSummarizePrompt({ text, maxLength, style }: BuildSummarizePromptOptions): string {
+export function buildSummarizePrompt({
+  text,
+  maxLength,
+  style,
+}: BuildSummarizePromptOptions): string {
   const lengthHint = LENGTH_GUIDANCE[maxLength];
   const styleHint = style ? `Style / format hint: ${style}.` : 'Style: neutral and factual.';
 

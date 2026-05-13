@@ -118,7 +118,9 @@ describe('LoggingInterceptor', () => {
       handle: () => throwError(() => new HttpException('Bad gateway', 502)),
     };
 
-    await expect(lastValueFrom(interceptor.intercept(context, next))).rejects.toBeInstanceOf(HttpException);
+    await expect(lastValueFrom(interceptor.intercept(context, next))).rejects.toBeInstanceOf(
+      HttpException,
+    );
 
     expect(logger.log).toHaveBeenCalledWith(
       'Outgoing response',
