@@ -1,7 +1,7 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import { BadGatewayException, InternalServerErrorException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { throwError } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { GeminiService } from '@/ai/providers/gemini.service';
 
 function buildAxiosError(status: number, message: string) {
@@ -15,6 +15,84 @@ function buildAxiosError(status: number, message: string) {
     },
   };
 }
+
+describe('GeminiService embedTexts', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env.GEMINI_API_KEY = 'test-key';
+    process.env.GEMINI_EMBEDDING_MODEL = 'text-embedding-004';
+  });
+
+  it('returns empty array for empty input without calling HTTP', async () => {
+    const post = vi.fn();
+    const httpService = { post } as unknown as HttpService;
+    const service = new GeminiService(httpService);
+
+    await expect(service.embedTexts([])).resolves.toEqual([]);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('calls batchEmbedContents and returns vectors in order', async () => {
+    const post = vi.fn(() =>
+      of({
+        data: {
+          embeddings: [{ values: [0.1, 0.2] }, { values: [0.3, 0.4] }],
+        },
+      }),
+    );
+    const httpService = { post } as unknown as HttpService;
+    const service = new GeminiService(httpService);
+
+    const result = await service.embedTexts(['hello', 'world']);
+
+    expect(result).toEqual([
+      [0.1, 0.2],
+      [0.3, 0.4],
+    ]);
+    expect(post).toHaveBeenCalledTimes(1);
+    const [url, body] = post.mock.calls[0];
+    expect(url).toContain('text-embedding-004:batchEmbedContents');
+    expect(body).toEqual({
+      requests: [
+        { model: 'models/text-embedding-004', content: { parts: [{ text: 'hello' }] } },
+        { model: 'models/text-embedding-004', content: { parts: [{ text: 'world' }] } },
+      ],
+    });
+  });
+
+  it('throws BadGatewayException when embeddings length mismatches', async () => {
+    const post = vi.fn(() =>
+      of({
+        data: { embeddings: [{ values: [1] }] },
+      }),
+    );
+    const httpService = { post } as unknown as HttpService;
+    const service = new GeminiService(httpService);
+
+    await expect(service.embedTexts(['a', 'b'])).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
+  it('chunks large inputs into multiple batchEmbedContents calls', async () => {
+    let call = 0;
+    const post = vi.fn(() => {
+      call += 1;
+      const n = call === 1 ? 100 : 1;
+      return of({
+        data: {
+          embeddings: Array.from({ length: n }, () => ({ values: [0.1] })),
+        },
+      });
+    });
+    const httpService = { post } as unknown as HttpService;
+    const service = new GeminiService(httpService);
+
+    const texts = Array.from({ length: 101 }, (_, i) => `doc-${i}`);
+    const result = await service.embedTexts(texts);
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(101);
+  });
+});
 
 describe('GeminiService error mapping', () => {
   beforeEach(() => {

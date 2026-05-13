@@ -68,12 +68,19 @@ const GENERIC_PROMPT_MIN_OUTPUT_TOKENS = 16;
 const GEMINI_429_MAX_RETRIES = 3;
 const GEMINI_429_BASE_BACKOFF_MS = 500;
 const GEMINI_429_MAX_JITTER_MS = 250;
+/** Conservative batch size for `batchEmbedContents` (API limit is not documented tightly). */
+const GEMINI_EMBED_BATCH_MAX = 100;
+
+type GeminiBatchEmbedResponse = {
+  embeddings?: Array<{ values?: number[] }>;
+};
 
 @Injectable()
 export class GeminiService {
   private readonly apiBaseUrl =
     process.env.GEMINI_API_BASE_URL ?? 'https://generativelanguage.googleapis.com';
   private readonly model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
+  private readonly embeddingModel = process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004';
 
   constructor(private readonly httpService: HttpService) {}
 
@@ -129,7 +136,10 @@ export class GeminiService {
       assistantText: string;
     }>;
   }): Promise<GeminiResult<GenericPromptResult>> {
-    const userPrompt = this.truncateGenericPromptText(options.userPrompt, GENERIC_PROMPT_MAX_USER_CHARS);
+    const userPrompt = this.truncateGenericPromptText(
+      options.userPrompt,
+      GENERIC_PROMPT_MAX_USER_CHARS,
+    );
     const systemInstruction = options.systemInstruction
       ? this.truncateGenericPromptText(options.systemInstruction, GENERIC_PROMPT_MAX_SYSTEM_CHARS)
       : undefined;
@@ -189,6 +199,43 @@ export class GeminiService {
     }
   }
 
+  /**
+   * Embedding vectors for RAG (index + query). Uses `models.batchEmbedContents`; order matches input.
+   */
+  async embedTexts(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) {
+      return [];
+    }
+
+    const modelResource = `models/${this.embeddingModel}`;
+    const batches: string[][] = [];
+    for (let i = 0; i < texts.length; i += GEMINI_EMBED_BATCH_MAX) {
+      batches.push(texts.slice(i, i + GEMINI_EMBED_BATCH_MAX));
+    }
+
+    const all: number[][] = [];
+
+    try {
+      for (const batch of batches) {
+        const body = {
+          requests: batch.map((text) => ({
+            model: modelResource,
+            content: { parts: [{ text }] },
+          })),
+        };
+        const data = await this.postBatchEmbedContents(body);
+        const vectors = this.parseBatchEmbedResponse(data, batch.length);
+        all.push(...vectors);
+      }
+      return all;
+    } catch (error) {
+      if (isAxiosError(error)) {
+        throw this.mapAxiosErrorToHttpException(error);
+      }
+      throw error;
+    }
+  }
+
   /** Prefer code-point boundaries over raw UTF-16 slice for trimmed user/system text. */
   private truncateGenericPromptText(value: string, maxChars: number): string {
     if (value.length <= maxChars) {
@@ -200,7 +247,10 @@ export class GeminiService {
   private clampGenericPromptMaxOutputTokens(requested: number | undefined): number {
     const fallback = GENERIC_PROMPT_MAX_OUTPUT_TOKENS;
     const n = requested !== undefined ? requested : fallback;
-    return Math.min(GENERIC_PROMPT_MAX_OUTPUT_TOKENS, Math.max(GENERIC_PROMPT_MIN_OUTPUT_TOKENS, n));
+    return Math.min(
+      GENERIC_PROMPT_MAX_OUTPUT_TOKENS,
+      Math.max(GENERIC_PROMPT_MIN_OUTPUT_TOKENS, n),
+    );
   }
 
   private requireApiKey(): string {
@@ -234,7 +284,6 @@ export class GeminiService {
     let attempt = 0;
     while (true) {
       try {
-        
         const { data } = await firstValueFrom(
           this.httpService.post<GeminiGenerateContentResponse>(url, body, {
             headers: {
@@ -246,7 +295,11 @@ export class GeminiService {
 
         return data;
       } catch (error) {
-        if (isAxiosError(error) && error.response?.status === 429 && attempt < GEMINI_429_MAX_RETRIES) {
+        if (
+          isAxiosError(error) &&
+          error.response?.status === 429 &&
+          attempt < GEMINI_429_MAX_RETRIES
+        ) {
           const baseBackoffMs = GEMINI_429_BASE_BACKOFF_MS * 2 ** attempt;
           // spreading out retries
           const jitterMs = Math.floor(Math.random() * GEMINI_429_MAX_JITTER_MS);
@@ -257,6 +310,59 @@ export class GeminiService {
         throw error;
       }
     }
+  }
+
+  private async postBatchEmbedContents(body: {
+    requests: Array<{ model: string; content: { parts: Array<{ text: string }> } }>;
+  }): Promise<GeminiBatchEmbedResponse> {
+    const apiKey = this.requireApiKey();
+    const url = `${this.apiBaseUrl}/v1beta/models/${this.embeddingModel}:batchEmbedContents`;
+
+    let attempt = 0;
+    while (true) {
+      try {
+        const { data } = await firstValueFrom(
+          this.httpService.post<GeminiBatchEmbedResponse>(url, body, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+          }),
+        );
+        return data;
+      } catch (error) {
+        if (
+          isAxiosError(error) &&
+          error.response?.status === 429 &&
+          attempt < GEMINI_429_MAX_RETRIES
+        ) {
+          const baseBackoffMs = GEMINI_429_BASE_BACKOFF_MS * 2 ** attempt;
+          const jitterMs = Math.floor(Math.random() * GEMINI_429_MAX_JITTER_MS);
+          await this.sleep(baseBackoffMs + jitterMs);
+          attempt += 1;
+          continue;
+        }
+        throw error;
+      }
+    }
+  }
+
+  private parseBatchEmbedResponse(
+    data: GeminiBatchEmbedResponse,
+    expectedCount: number,
+  ): number[][] {
+    const embeddings = data.embeddings;
+    if (!Array.isArray(embeddings) || embeddings.length !== expectedCount) {
+      throw new BadGatewayException('Gemini embedding API returned an unexpected response');
+    }
+
+    return embeddings.map((item, index) => {
+      const values = item.values;
+      if (!Array.isArray(values) || values.length === 0) {
+        throw new BadGatewayException(`Gemini embedding API missing vector at index ${index}`);
+      }
+      return values;
+    });
   }
 
   private parseTranslationResponse(data: GeminiGenerateContentResponse): TranslationResponse {
@@ -271,7 +377,9 @@ export class GeminiService {
     }
 
     try {
-      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<TranslationResponse>;
+      const parsed = JSON.parse(
+        this.extractJsonObjectFromModelText(responseText),
+      ) as Partial<TranslationResponse>;
       if (typeof parsed.translatedText !== 'string') {
         throw new Error('translatedText is missing');
       }
@@ -298,7 +406,9 @@ export class GeminiService {
     }
 
     try {
-      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<SummaryResponse>;
+      const parsed = JSON.parse(
+        this.extractJsonObjectFromModelText(responseText),
+      ) as Partial<SummaryResponse>;
       if (typeof parsed.summary !== 'string' || !parsed.summary.trim()) {
         throw new Error('summary is missing');
       }
@@ -323,7 +433,9 @@ export class GeminiService {
     }
 
     try {
-      const parsed = JSON.parse(this.extractJsonObjectFromModelText(responseText)) as Partial<GenericPromptResult>;
+      const parsed = JSON.parse(
+        this.extractJsonObjectFromModelText(responseText),
+      ) as Partial<GenericPromptResult>;
       if (typeof parsed.text !== 'string' || !parsed.text.trim()) {
         throw new Error('text is missing');
       }
@@ -358,17 +470,26 @@ export class GeminiService {
         throw new Error('analysis is missing');
       }
 
-      if (!Array.isArray(parsed.suggestions) || parsed.suggestions.some((item) => typeof item !== 'string')) {
+      if (
+        !Array.isArray(parsed.suggestions) ||
+        parsed.suggestions.some((item) => typeof item !== 'string')
+      ) {
         throw new Error('suggestions must be string[]');
       }
 
-      if (parsed.severity !== 'info' && parsed.severity !== 'warning' && parsed.severity !== 'error') {
+      if (
+        parsed.severity !== 'info' &&
+        parsed.severity !== 'warning' &&
+        parsed.severity !== 'error'
+      ) {
         throw new Error('severity must be info|warning|error');
       }
 
       return {
         analysis: parsed.analysis.trim(),
-        suggestions: parsed.suggestions.map((item) => item.trim()).filter((item) => item.length > 0),
+        suggestions: parsed.suggestions
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0),
         severity: parsed.severity,
       };
     } catch {
@@ -442,7 +563,9 @@ export class GeminiService {
 
   private isLikelyApiKeyFailure(message: string | undefined): boolean {
     if (!message) return false;
-    return /(api key|invalid key|authentication failed|unauthenticated|permission denied)/i.test(message);
+    return /(api key|invalid key|authentication failed|unauthenticated|permission denied)/i.test(
+      message,
+    );
   }
 
   private sleep(ms: number): Promise<void> {
