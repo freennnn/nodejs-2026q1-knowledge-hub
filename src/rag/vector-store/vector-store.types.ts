@@ -23,7 +23,7 @@ export type RagVectorPoint = {
 // Payload predicates when querying for similar points (metadata filters).
 export type RagPointMatchFilter = {
   articleStatus?: ArticleStatus;
-  categoryId?: string;
+  categoryId?: string | null;
   tags?: string[];
 };
 

@@ -15,6 +15,7 @@ import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
 import { SortOrder, SortQueryDto } from '@/common/dto/sort-query.dto';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import { UserRole } from '@/common/enums/user-role.enum';
+import { SemanticSearchDto } from '@/rag/dto/semantic-search.dto';
 import { CreateUserDto } from '@/user/dto/create-user.dto';
 import { UpdatePasswordDto } from '@/user/dto/update-password.dto';
 import { UpdateUserDto } from '@/user/dto/update-user.dto';
@@ -107,6 +108,33 @@ describe('DTO validation', () => {
       categoryId: ids.category,
       tags: ['testing'],
     });
+    await expectValid(CreateArticleDto, {
+      title: 'Article',
+      content: 'Content',
+      categoryId: '',
+    });
+    await expectValid(CreateArticleDto, {
+      title: 'Article',
+      content: 'Content',
+      categoryId: '   ',
+    });
+    await expectValid(UpdateArticleDto, {
+      categoryId: '',
+    });
+
+    const createWithEmptyCategory = plainToInstance(CreateArticleDto, {
+      title: 'Article',
+      content: 'Content',
+      categoryId: '',
+    });
+    await expect(validate(createWithEmptyCategory)).resolves.toHaveLength(0);
+    expect(createWithEmptyCategory.categoryId).toBeNull();
+
+    const updateWithBlankCategory = plainToInstance(UpdateArticleDto, {
+      categoryId: '   ',
+    });
+    await expect(validate(updateWithBlankCategory)).resolves.toHaveLength(0);
+    expect(updateWithBlankCategory.categoryId).toBeNull();
   });
 
   it('validates category and comment DTOs', async () => {
@@ -163,5 +191,56 @@ describe('DTO validation', () => {
       categoryId: ids.category,
       tag: 'nestjs',
     });
+
+    await expectValid(ListArticlesQueryDto, {
+      categoryId: '',
+    });
+    await expectValid(ListArticlesQueryDto, {
+      categoryId: '   ',
+    });
+
+    const listWithBlankCategory = plainToInstance(ListArticlesQueryDto, {
+      categoryId: '   ',
+    });
+    await expect(validate(listWithBlankCategory)).resolves.toHaveLength(0);
+    expect(listWithBlankCategory.categoryId).toBeNull();
+  });
+
+  it('validates and normalizes semantic search DTO categoryId', async () => {
+    await expectValid(SemanticSearchDto, { query: 'nest validation' });
+    await expectValid(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: ids.category,
+    });
+    await expectValid(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: null,
+    });
+    await expectValid(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: '',
+    });
+    await expectValid(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: '   ',
+    });
+    await expectInvalid(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: 'not-a-uuid',
+    });
+
+    const emptyCategory = plainToInstance(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: '',
+    });
+    await expect(validate(emptyCategory)).resolves.toHaveLength(0);
+    expect(emptyCategory.categoryId).toBeNull();
+
+    const blankCategory = plainToInstance(SemanticSearchDto, {
+      query: 'nest validation',
+      categoryId: '   ',
+    });
+    await expect(validate(blankCategory)).resolves.toHaveLength(0);
+    expect(blankCategory.categoryId).toBeNull();
   });
 });

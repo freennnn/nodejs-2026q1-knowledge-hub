@@ -8,6 +8,7 @@ import { ArticleModule } from '@/article/article.module';
 import { CommentModule } from '@/comment/comment.module';
 import { AuthModule } from '@/auth/auth.module';
 import { AiModule } from './ai/ai.module';
+import { RagModule } from './rag/rag.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AiModule } from './ai/ai.module';
     CommentModule,
     AuthModule,
     AiModule,
+    RagModule,
   ],
   controllers: [AppController],
   providers: [AppService],
