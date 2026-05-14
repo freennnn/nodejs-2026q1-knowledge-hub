@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { GeminiService } from '@/ai/providers/gemini.service';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import type { Article } from '@/common/types/article';
+import { buildArticleContentHash } from '@/rag/chunking/build-article-content-hash';
 import { chunkArticleText } from '@/rag/chunking/chunk-article-text';
 import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
@@ -38,6 +38,7 @@ export class RagArticleIndexService {
 
     const embeddings = await this.geminiService.embedTexts(chunks);
     const updatedAtIso = new Date(article.updatedAt).toISOString();
+    const contentHash = buildArticleContentHash(article);
 
     const points: RagVectorPoint[] = chunks.map((chunk, chunkIndex) => ({
       id: `${article.id}:${chunkIndex}`,
@@ -50,7 +51,7 @@ export class RagArticleIndexService {
         status: article.status,
         categoryId: article.categoryId,
         tags: article.tags,
-        contentHash: createHash('sha256').update(chunk, 'utf8').digest('hex'),
+        contentHash,
         sourceUpdatedAt: updatedAtIso,
       },
     }));
