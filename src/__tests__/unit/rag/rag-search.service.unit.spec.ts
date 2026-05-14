@@ -5,7 +5,7 @@ import { RagSearchService } from '@/rag/rag-search.service';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
 
 describe('RagSearchService', () => {
-  it('embeds query and searches with published-only filter and optional metadata filters', async () => {
+  it('embeds query and searches with optional metadata filters', async () => {
     const embedTexts = vi.fn().mockResolvedValue([[0.1, 0.2, 0.3]]);
     const search = vi.fn().mockResolvedValue([
       {
@@ -28,6 +28,7 @@ describe('RagSearchService', () => {
     const service = new RagSearchService(geminiService, vectorStore);
 
     const result = await service.semanticSearch('why nest', 5, {
+      articleStatus: ArticleStatus.PUBLISHED,
       categoryId: '00000000-0000-4000-8000-000000000099',
       tags: ['news'],
     });
@@ -38,12 +39,13 @@ describe('RagSearchService', () => {
       categoryId: '00000000-0000-4000-8000-000000000099',
       tags: ['news'],
     });
-    expect(result.matches).toHaveLength(1);
-    expect(result.matches[0].chunk).toBe('hello');
-    expect(result.matches[0].articleTitle).toBe('T');
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].chunk).toBe('hello');
+    expect(result.results[0].articleTitle).toBe('T');
+    expect(result.results[0].similarity).toBe(0.95);
   });
 
-  it('supports explicit null category filter (uncategorized-only)', async () => {
+  it('omits filters when no options are provided', async () => {
     const embedTexts = vi.fn().mockResolvedValue([[0.1, 0.2, 0.3]]);
     const search = vi.fn().mockResolvedValue([]);
     const geminiService = { embedTexts } as unknown as GeminiService;
@@ -51,13 +53,8 @@ describe('RagSearchService', () => {
 
     const service = new RagSearchService(geminiService, vectorStore);
 
-    await service.semanticSearch('why nest', 5, {
-      categoryId: null,
-    });
+    await service.semanticSearch('why nest', 5);
 
-    expect(search).toHaveBeenCalledWith([0.1, 0.2, 0.3], 5, {
-      articleStatus: ArticleStatus.PUBLISHED,
-      categoryId: null,
-    });
+    expect(search).toHaveBeenCalledWith([0.1, 0.2, 0.3], 5, {});
   });
 });

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { GeminiService } from '@/ai/providers/gemini.service';
-import { ArticleStatus } from '@/common/enums/article-status.enum';
+import type { ArticleStatus } from '@/common/enums/article-status.enum';
 import type { SemanticSearchResponseDto } from '@/rag/dto/semantic-search.response.dto';
-import type { RagPointMatchFilter } from '@/rag/vector-store/vector-store.types';
+import type { RagArticleSearchFilter } from '@/rag/vector-store/vector-store.types';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
 
 @Injectable()
@@ -15,14 +15,15 @@ export class RagSearchService {
   async semanticSearch(
     query: string,
     limit: number,
-    options?: { categoryId?: string | null; tags?: string[] },
+    options?: { categoryId?: string | null; articleStatus?: ArticleStatus; tags?: string[] },
   ): Promise<SemanticSearchResponseDto> {
     const [vector] = await this.geminiService.embedTexts([query]);
 
-    const filter: RagPointMatchFilter = {
-      articleStatus: ArticleStatus.PUBLISHED,
-    };
+    const filter: RagArticleSearchFilter = {};
 
+    if (options?.articleStatus !== undefined) {
+      filter.articleStatus = options.articleStatus;
+    }
     if (options?.categoryId !== undefined) {
       filter.categoryId = options.categoryId;
     }
@@ -33,15 +34,11 @@ export class RagSearchService {
     const matches = await this.vectorStore.search(vector, limit, filter);
 
     return {
-      matches: matches.map((m) => ({
-        pointId: m.pointId,
-        score: m.score,
+      results: matches.map((m) => ({
         articleId: m.payload.articleId,
         articleTitle: m.payload.articleTitle,
         chunk: m.payload.chunk,
-        chunkIndex: m.payload.chunkIndex,
-        categoryId: m.payload.categoryId,
-        tags: m.payload.tags,
+        similarity: m.score,
       })),
     };
   }

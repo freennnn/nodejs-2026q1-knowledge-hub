@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsEnum,
   IsArray,
   IsInt,
   IsNotEmpty,
@@ -11,6 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ARTICLE_STATUS_VALUES, ArticleStatus } from '@/common/enums/article-status.enum';
 import { toNullableUuidInput } from '@/common/dto/nullable-uuid-input';
 
 export class SemanticSearchDto {
@@ -21,23 +23,30 @@ export class SemanticSearchDto {
   @MaxLength(8000)
   query!: string;
 
-  @ApiPropertyOptional({ description: 'Max number of chunks to return', default: 10, minimum: 1 })
+  @ApiPropertyOptional({ description: 'Max number of chunks to return', default: 5, minimum: 1 })
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(25)
+  @Max(20)
   limit?: number;
 
   @ApiPropertyOptional({
     format: 'uuid',
     nullable: true,
-    description: 'Category filter: omit/undefined = no filter, null/empty = uncategorized only',
+    description: 'Optional category filter',
   })
   @Transform(({ value }) => toNullableUuidInput(value))
-  // skip subsequent validators if null or undefined
   @IsOptional()
   @IsUUID('4')
   categoryId?: string | null;
+
+  @ApiPropertyOptional({
+    enum: ARTICLE_STATUS_VALUES,
+    description: 'Optional article status filter',
+  })
+  @IsOptional()
+  @IsEnum(ArticleStatus)
+  articleStatus?: ArticleStatus;
 
   @ApiPropertyOptional({
     type: [String],

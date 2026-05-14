@@ -1,12 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class SemanticSearchMatchDto {
-  @ApiProperty()
-  pointId!: string;
-
-  @ApiProperty({ description: 'Cosine similarity score from Qdrant (higher is more similar)' })
-  score!: number;
-
+export class SemanticSearchResultDto {
   @ApiProperty({ format: 'uuid' })
   articleId!: string;
 
@@ -16,17 +10,11 @@ export class SemanticSearchMatchDto {
   @ApiProperty()
   chunk!: string;
 
-  @ApiProperty()
-  chunkIndex!: number;
-
-  @ApiProperty({ format: 'uuid', nullable: true })
-  categoryId!: string | null;
-
-  @ApiProperty({ type: [String] })
-  tags!: string[];
+  @ApiProperty({ description: 'Cosine similarity score from Qdrant (higher is more similar)' })
+  similarity!: number;
 }
 
 export class SemanticSearchResponseDto {
-  @ApiProperty({ type: [SemanticSearchMatchDto] })
-  matches!: SemanticSearchMatchDto[];
+  @ApiProperty({ type: [SemanticSearchResultDto] })
+  results!: SemanticSearchResultDto[];
 }

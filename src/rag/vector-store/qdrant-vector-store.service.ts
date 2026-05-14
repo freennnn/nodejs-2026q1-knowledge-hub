@@ -4,10 +4,10 @@ import type { Schemas } from '@qdrant/js-client-rest';
 import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
 import type { VectorStore } from '@/rag/vector-store/vector-store.interface';
 import type {
-  RagPointMatch,
-  RagPointMatchFilter,
-  RagPointPayload,
-  RagVectorPoint,
+  RagArticleSearchFilter,
+  RagArticleSearchPayload,
+  RagArticleSearchResult,
+  RagArticleVectorPoint,
 } from '@/rag/vector-store/vector-store.types';
 import { TEXT_EMBEDDING_004_VECTOR_SIZE } from '@/rag/vector-store/vector-store.types';
 
@@ -69,7 +69,7 @@ export class QdrantVectorStoreService implements VectorStore {
     });
   }
 
-  async upsertPoints(points: RagVectorPoint[]): Promise<void> {
+  async upsertPoints(points: RagArticleVectorPoint[]): Promise<void> {
     if (points.length === 0) {
       return;
     }
@@ -85,22 +85,22 @@ export class QdrantVectorStoreService implements VectorStore {
   async search(
     queryVector: number[],
     limit: number,
-    filter?: RagPointMatchFilter,
-  ): Promise<RagPointMatch[]> {
+    filter?: RagArticleSearchFilter,
+  ): Promise<RagArticleSearchResult[]> {
     await this.ensureCollection();
     return this.runQdrantOperation('search', async () => {
-      const qdrantFilter = this.buildPointMatchFilter(filter);
+      const qdrantFilter = this.buildSearchFilter(filter);
       const results = await this.client.search(this.collectionName, {
         vector: queryVector,
         limit,
         filter: qdrantFilter,
         with_payload: true,
       });
-      return results.map((row) => this.parsePointMatch(row));
+      return results.map((row) => this.parseSearchResult(row));
     });
   }
 
-  private buildPointMatchFilter(filter?: RagPointMatchFilter): Schemas['Filter'] | undefined {
+  private buildSearchFilter(filter?: RagArticleSearchFilter): Schemas['Filter'] | undefined {
     if (!filter) {
       return undefined;
     }
@@ -119,16 +119,16 @@ export class QdrantVectorStoreService implements VectorStore {
     return must.length > 0 ? { must } : undefined;
   }
 
-  private parsePointMatch(raw: Schemas['ScoredPoint']): RagPointMatch {
+  private parseSearchResult(raw: Schemas['ScoredPoint']): RagArticleSearchResult {
     const id = raw.id;
     const pointId =
       typeof id === 'string' || typeof id === 'number' ? String(id) : JSON.stringify(id);
     const score = typeof raw.score === 'number' ? raw.score : 0;
-    const payload = this.parsePointPayload(raw.payload);
+    const payload = this.parseSearchPayload(raw.payload);
     return { pointId, score, payload };
   }
 
-  private parsePointPayload(raw: unknown): RagPointPayload {
+  private parseSearchPayload(raw: unknown): RagArticleSearchPayload {
     if (!raw || typeof raw !== 'object') {
       throw new ServiceUnavailableException('Vector database returned invalid payload');
     }
@@ -163,7 +163,7 @@ export class QdrantVectorStoreService implements VectorStore {
       articleTitle,
       chunk,
       chunkIndex,
-      status: status as RagPointPayload['status'],
+      status: status as RagArticleSearchPayload['status'],
       categoryId: categoryIdNorm,
       tags: tags as string[],
       contentHash: typeof p['contentHash'] === 'string' ? p['contentHash'] : undefined,
