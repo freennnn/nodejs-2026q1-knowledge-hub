@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AiRateLimitGuard } from '@/ai/guards/ai-rate-limit.guard';
 import { Roles } from '@/auth/decorators/roles.decorator';
 import { UserRole } from '@/common/enums/user-role.enum';
+import { RagChatDto } from '@/rag/dto/rag-chat.dto';
+import { RagChatResponseDto } from '@/rag/dto/rag-chat.response.dto';
 import { ReindexRequestDto } from '@/rag/dto/reindex-request.dto';
 import { ReindexResponseDto } from '@/rag/dto/reindex-response.dto';
 import { SemanticSearchDto } from '@/rag/dto/semantic-search.dto';
@@ -10,6 +12,7 @@ import {
   SemanticSearchResponseDto,
 } from '@/rag/dto/semantic-search.response.dto';
 import { RagArticleIndexService } from '@/rag/rag-article-index.service';
+import { RagChatService } from '@/rag/rag-chat.service';
 import { RagSearchService } from '@/rag/rag-search.service';
 
 @ApiTags('rag')
@@ -20,6 +23,7 @@ export class RagController {
   constructor(
     private readonly ragSearchService: RagSearchService,
     private readonly ragArticleIndexService: RagArticleIndexService,
+    private readonly ragChatService: RagChatService,
   ) {}
 
   @ApiResponse({ status: 200, type: ReindexResponseDto })
@@ -58,5 +62,21 @@ export class RagController {
       articleStatus: dto.articleStatus,
       tags: dto.tags,
     });
+  }
+
+  @ApiResponse({ status: 200, type: RagChatResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests (same AI rate-limit bucket as other Gemini routes)',
+  })
+  @ApiResponse({ status: 503, description: 'Vector database or Gemini unavailable' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Post('chat')
+  async chat(@Body() dto: RagChatDto): Promise<RagChatResponseDto> {
+    return this.ragChatService.chat(dto.question, dto.conversationId);
   }
 }

@@ -199,6 +199,18 @@ export class GeminiService {
     }
   }
 
+  async completeRagAnswer(prompt: string): Promise<string> {
+    try {
+      const data = await this.postGenerateContent(prompt);
+      return this.parsePlainTextResponse(data);
+    } catch (error) {
+      if (isAxiosError(error)) {
+        throw this.mapAxiosErrorToHttpException(error);
+      }
+      throw error;
+    }
+  }
+
   /**
    * Embedding vectors for RAG (index + query). Uses `models.batchEmbedContents`; order matches input.
    */
@@ -495,6 +507,18 @@ export class GeminiService {
     } catch {
       throw new BadGatewayException('Gemini API returned invalid analyze JSON');
     }
+  }
+
+  private parsePlainTextResponse(data: GeminiGenerateContentResponse): string {
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter((part): part is string => Boolean(part))
+      .join('')
+      .trim();
+    if (!text) {
+      throw new BadGatewayException('Gemini API returned an empty response');
+    }
+    return text;
   }
 
   private mapAxiosErrorToHttpException(error: AxiosError): HttpException {
