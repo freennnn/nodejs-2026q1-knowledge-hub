@@ -102,6 +102,127 @@ npm run start:dev
 
 With this DB-only flow, Prisma generation and migrations are manual because the Compose `migrate` service only runs during the full Compose app flow.
 
+### Updated local flow (app local, DB + Qdrant in Docker)
+
+1. Start infra:
+
+```bash
+docker compose up -d db vectordb
+```
+
+2. Prepare DB (same as before):
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate:deploy
+```
+
+Optional:
+
+```bash
+npm run prisma:seed
+```
+
+3. Start app locally:
+
+```bash
+npm run start:dev
+```
+
+4. Build vector index (new):
+
+- get token
+- call `POST /ai/rag/index` (for example with `{"onlyPublished": false}`)
+
+After that, `/ai/rag/search` and `/ai/rag/chat` are meaningful.
+
+## RAG + Vector DB
+
+### Models used
+
+- Embedding model: `GEMINI_EMBEDDING_MODEL=text-embedding-004`
+
+### Vector DB used
+
+- Provider: **Qdrant** (`qdrant/qdrant` image)
+- Service in Compose: `vectordb`
+- Ports: `6333` (REST), `6334` (gRPC)
+- Persistent volume: `qdrant_data`
+- The app container connects internally via `http://vectordb:6333` (Compose env override).
+- Qdrant gets data when you call `POST /ai/rag/index` (bulk index build/refresh), and also from article CRUD flows (`POST /article`, `PATCH /article/:id`, `DELETE /article/:id`) which sync/remove vectors for affected articles.
+
+### Full startup flow after clone
+
+1. Copy env template:
+
+```bash
+cp .env.example .env
+```
+
+2. Set a valid `GEMINI_API_KEY` in `.env`.
+
+3. Start full stack (app + PostgreSQL + Qdrant + migrate):
+
+```bash
+docker compose up --build
+```
+
+4. (Optional) seed demo data:
+
+```bash
+docker compose --profile seed run --rm seed
+```
+
+5. Get access token (seeded admin):
+
+```bash
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:4000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"ny_news_admin","password":"admin123"}' | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).accessToken")
+```
+
+6. Build/refresh vector index:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/index \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"onlyPublished":false}'
+```
+
+7. Semantic search request:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/search \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"How are DTOs validated?","limit":5}'
+```
+
+8. RAG chat request:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/chat \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Summarize how this API validates input"}'
+```
+
+9. Optional conversation history inspection:
+
+```bash
+curl -s http://localhost:4000/ai/rag/chat/<conversationId>/history \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### RAG known limitations
+
+- Gemini free-tier quotas can cause temporary rate limiting/overload responses.
+- Latency varies by region and current provider load.
+- Initial indexing time grows with article count and chunk count.
+- Regional availability of Gemini models/features can vary by account/location.
+- RAG conversation memory is in-memory only (cleared on service restart).
+
 ## Reviewer Quickstart (AI endpoints)
 
 Use this section to run the app end-to-end and try all AI routes quickly.
