@@ -112,7 +112,7 @@ export class RagArticleIndexService {
     return points.length;
   }
 
-  async removeArticleVectors(articleId: string): Promise<void> {
-    await this.vectorStore.deleteByArticleId(articleId);
+  async removeArticleVectors(articleId: string): Promise<number> {
+    return this.vectorStore.deleteByArticleId(articleId);
   }
 }

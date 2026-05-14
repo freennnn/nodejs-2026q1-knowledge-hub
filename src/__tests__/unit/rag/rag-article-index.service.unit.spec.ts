@@ -82,4 +82,22 @@ describe('RagArticleIndexService', () => {
     expect(indexed).toBe(0);
     expect(deleteByArticleId).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000002');
   });
+
+  it('removeArticleVectors returns removed points count', async () => {
+    const prisma = { article: { findMany: vi.fn() } } as unknown as PrismaService;
+    const geminiService = { embedTexts: vi.fn() } as unknown as GeminiService;
+    const deleteByArticleId = vi.fn().mockResolvedValue(3);
+    const vectorStore = {
+      deleteByArticleId,
+      upsertPoints: vi.fn(),
+    } as unknown as QdrantVectorStoreService;
+
+    const service = new RagArticleIndexService(prisma, geminiService, vectorStore, env);
+    const removed = await service.removeArticleVectors(
+      '00000000-0000-4000-8000-000000000003',
+    );
+
+    expect(removed).toBe(3);
+    expect(deleteByArticleId).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000003');
+  });
 });

@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -54,6 +56,23 @@ export class RagController {
   @Post('index')
   async reindex(@Body() dto: ReindexRequestDto): Promise<ReindexResponseDto> {
     return this.ragArticleIndexService.reindex(dto);
+  }
+
+  @ApiResponse({ status: 204, description: 'Article vectors removed from index' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({ status: 404, description: 'Article/index entries are not found' })
+  @ApiResponse({ status: 503, description: 'Vector database unavailable' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR)
+  @HttpCode(204)
+  @Delete('index/articles/:articleId')
+  async deleteIndexedArticle(
+    @Param('articleId', new ParseUUIDPipe({ version: '4' })) articleId: string,
+  ): Promise<void> {
+    const removedCount = await this.ragArticleIndexService.removeArticleVectors(articleId);
+    if (removedCount === 0) {
+      throw new NotFoundException(`No indexed vectors found for article "${articleId}"`);
+    }
   }
 
   @ApiResponse({ status: 200, type: SemanticSearchResponseDto })
