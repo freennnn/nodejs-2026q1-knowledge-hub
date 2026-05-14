@@ -24,14 +24,14 @@ export class RagChatService {
   // 6. Save only the new text turn (question, answer) to conversation history.
   // So yes: retrieved chunks are used per request to build prompt, but not persisted in the conversation history map.
 
-  async chat(question: string, conversationId?: string): Promise<RagChatResponseDto> {
+  async chat(userId: string, question: string, conversationId?: string): Promise<RagChatResponseDto> {
     const resolvedConversationId = conversationId ?? randomUUID();
-    const history = this.ragConversationService.getHistory(resolvedConversationId);
+    const history = this.ragConversationService.getHistory(userId, resolvedConversationId);
     const retrieval = await this.ragSearchService.semanticSearch(question, this.retrievalLimit);
     const prompt = buildRagAnswerPrompt(question, retrieval.results, history);
     const answer = await this.geminiService.completeRagAnswer(prompt);
 
-    this.ragConversationService.appendTurn(resolvedConversationId, question, answer);
+    this.ragConversationService.appendTurn(userId, resolvedConversationId, question, answer);
 
     // if multiple matches/chunks from the same article are returned - we only filter article iself
     const sourcesByArticle = new Map<

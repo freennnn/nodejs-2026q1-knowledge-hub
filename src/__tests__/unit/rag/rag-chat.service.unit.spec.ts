@@ -6,6 +6,7 @@ import { RagSearchService } from '@/rag/rag-search.service';
 
 describe('RagChatService', () => {
   it('builds answer from retrieved chunks and deduplicates sources by article', async () => {
+    const userId = '00000000-0000-4000-8000-000000000111';
     const ragSearchService = {
       semanticSearch: vi.fn().mockResolvedValue({
         results: [
@@ -45,7 +46,11 @@ describe('RagChatService', () => {
     } as unknown as GeminiService;
 
     const service = new RagChatService(ragSearchService, ragConversationService, geminiService);
-    const res = await service.chat('What is used?', '00000000-0000-4000-8000-000000000099');
+    const res = await service.chat(
+      userId,
+      'What is used?',
+      '00000000-0000-4000-8000-000000000099',
+    );
 
     expect(res.answer).toBe('Grounded answer');
     expect(res.conversationId).toBe('00000000-0000-4000-8000-000000000099');
@@ -56,6 +61,7 @@ describe('RagChatService', () => {
   });
 
   it('generates a conversationId if missing and appends history', async () => {
+    const userId = '00000000-0000-4000-8000-000000000222';
     const ragSearchService = {
       semanticSearch: vi.fn().mockResolvedValue({ results: [] }),
     } as unknown as RagSearchService;
@@ -74,8 +80,8 @@ describe('RagChatService', () => {
     } as unknown as GeminiService;
 
     const service = new RagChatService(ragSearchService, ragConversationService, geminiService);
-    const first = await service.chat('Q1?');
-    const second = await service.chat('Q2?', first.conversationId);
+    const first = await service.chat(userId, 'Q1?');
+    const second = await service.chat(userId, 'Q2?', first.conversationId);
 
     expect(first.conversationId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,

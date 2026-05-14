@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
 
 export type RagConversationMessage = {
@@ -12,18 +12,30 @@ export class RagConversationService {
 
   constructor(private readonly env: RagEnv = loadRagEnv()) {}
 
-  getHistory(conversationId: string): RagConversationMessage[] {
-    const history = this.conversations.get(conversationId);
+  getHistory(userId: string, conversationId: string): RagConversationMessage[] {
+    const history = this.conversations.get(this.buildKey(userId, conversationId));
     return history ? [...history] : [];
   }
 
-  appendTurn(conversationId: string, question: string, answer: string): void {
-    const history = this.getHistory(conversationId);
+  getHistoryOrThrow(userId: string, conversationId: string): RagConversationMessage[] {
+    const history = this.getHistory(userId, conversationId);
+    if (history.length === 0) {
+      throw new NotFoundException('Conversation history not found');
+    }
+    return history;
+  }
+
+  appendTurn(userId: string, conversationId: string, question: string, answer: string): void {
+    const history = this.getHistory(userId, conversationId);
     history.push(
       { role: 'user', text: question },
       { role: 'assistant', text: answer },
     );
     const maxMessages = Math.max(1, this.env.conversationMaxMessages);
-    this.conversations.set(conversationId, history.slice(-maxMessages));
+    this.conversations.set(this.buildKey(userId, conversationId), history.slice(-maxMessages));
+  }
+
+  private buildKey(userId: string, conversationId: string): string {
+    return `${userId}:${conversationId}`;
   }
 }

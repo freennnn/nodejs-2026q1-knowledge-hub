@@ -1,8 +1,20 @@
-import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AiRateLimitGuard } from '@/ai/guards/ai-rate-limit.guard';
+import { CurrentUser } from '@/auth/decorators/current-user.decorator';
 import { Roles } from '@/auth/decorators/roles.decorator';
+import type { AuthUser } from '@/auth/types/auth-user.type';
 import { UserRole } from '@/common/enums/user-role.enum';
+import { RagChatHistoryResponseDto } from '@/rag/dto/rag-chat-history.response.dto';
 import { RagChatDto } from '@/rag/dto/rag-chat.dto';
 import { RagChatResponseDto } from '@/rag/dto/rag-chat.response.dto';
 import { ReindexRequestDto } from '@/rag/dto/reindex-request.dto';
@@ -12,6 +24,7 @@ import {
   SemanticSearchResponseDto,
 } from '@/rag/dto/semantic-search.response.dto';
 import { RagArticleIndexService } from '@/rag/rag-article-index.service';
+import { RagConversationService } from '@/rag/conversation/rag-conversation.service';
 import { RagChatService } from '@/rag/rag-chat.service';
 import { RagSearchService } from '@/rag/rag-search.service';
 
@@ -24,6 +37,7 @@ export class RagController {
     private readonly ragSearchService: RagSearchService,
     private readonly ragArticleIndexService: RagArticleIndexService,
     private readonly ragChatService: RagChatService,
+    private readonly ragConversationService: RagConversationService,
   ) {}
 
   @ApiResponse({ status: 200, type: ReindexResponseDto })
@@ -76,7 +90,25 @@ export class RagController {
   @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
   @HttpCode(200)
   @Post('chat')
-  async chat(@Body() dto: RagChatDto): Promise<RagChatResponseDto> {
-    return this.ragChatService.chat(dto.question, dto.conversationId);
+  async chat(
+    @Body() dto: RagChatDto,
+    @CurrentUser() actor: AuthUser,
+  ): Promise<RagChatResponseDto> {
+    return this.ragChatService.chat(actor.userId, dto.question, dto.conversationId);
+  }
+
+  @ApiResponse({ status: 200, type: RagChatHistoryResponseDto })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({ status: 404, description: 'Conversation history not found' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Get('chat/:conversationId/history')
+  getChatHistory(
+    @Param('conversationId', new ParseUUIDPipe({ version: '4' })) conversationId: string,
+    @CurrentUser() actor: AuthUser,
+  ): RagChatHistoryResponseDto {
+    const messages = this.ragConversationService.getHistoryOrThrow(actor.userId, conversationId);
+    return { conversationId, messages };
   }
 }
