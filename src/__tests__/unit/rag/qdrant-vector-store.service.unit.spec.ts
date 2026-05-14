@@ -123,4 +123,40 @@ describe('QdrantVectorStoreService', () => {
       }),
     );
   });
+
+  it('translates status/category/tags filter into Qdrant must conditions', async () => {
+    const getCollections = vi.fn().mockResolvedValue({
+      collections: [{ name: 'test_articles' }],
+    });
+    const search = vi.fn().mockResolvedValue([]);
+    const client = {
+      getCollections,
+      createCollection: vi.fn(),
+      search,
+    } as unknown as QdrantClient;
+    const service = new QdrantVectorStoreService(testEnv(), client);
+
+    await service.search([0.5, 0.4], 3, {
+      articleStatus: ArticleStatus.ARCHIVED,
+      categoryId: '00000000-0000-4000-8000-000000000777',
+      tags: ['housing', 'budget'],
+    });
+
+    expect(search).toHaveBeenCalledWith(
+      'test_articles',
+      expect.objectContaining({
+        filter: {
+          must: [
+            { key: 'status', match: { value: ArticleStatus.ARCHIVED } },
+            {
+              key: 'categoryId',
+              match: { value: '00000000-0000-4000-8000-000000000777' },
+            },
+            { key: 'tags', match: { value: 'housing' } },
+            { key: 'tags', match: { value: 'budget' } },
+          ],
+        },
+      }),
+    );
+  });
 });

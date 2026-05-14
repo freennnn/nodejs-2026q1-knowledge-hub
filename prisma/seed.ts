@@ -61,7 +61,20 @@ async function main() {
     }),
   ]);
 
-  const tagNames = ['cityhall', 'subway', 'housing', 'elections', 'broadway'];
+  const tagNames = [
+    'cityhall',
+    'subway',
+    'housing',
+    'elections',
+    'broadway',
+    'transit',
+    'budget',
+    'schools',
+    'public-safety',
+    'small-business',
+    'parks',
+    'health',
+  ];
   const tags = await Promise.all(
     tagNames.map((name) =>
       prisma.tag.create({
@@ -71,95 +84,97 @@ async function main() {
   );
   const tagsByName = new Map(tags.map((tag) => [tag.name, tag]));
 
-  const articles = await Promise.all([
-    prisma.article.create({
-      data: {
-        title: 'City Hall Announces New Subway Safety Plan',
-        content: 'Officials outlined a week-by-week rollout across major stations.',
-        status: ArticleStatus.PUBLISHED,
-        authorId: admin.id,
-        categoryId: categories[0].id,
-        tags: {
-          connect: [{ id: tagsByName.get('cityhall')!.id }, { id: tagsByName.get('subway')!.id }],
-        },
-      },
-    }),
-    prisma.article.create({
-      data: {
-        title: 'Mayoral Race Tightens Ahead of Final Debate',
-        content: 'Latest polling suggests a narrow margin among leading candidates.',
-        status: ArticleStatus.DRAFT,
-        authorId: editor.id,
-        categoryId: categories[1].id,
-        tags: {
-          connect: [
-            { id: tagsByName.get('elections')!.id },
-            { id: tagsByName.get('cityhall')!.id },
-          ],
-        },
-      },
-    }),
-    prisma.article.create({
-      data: {
-        title: 'Broadway Season Opens With Record Advance Sales',
-        content: 'Producers report a strong box office outlook for the quarter.',
-        status: ArticleStatus.PUBLISHED,
-        authorId: admin.id,
-        categoryId: categories[2].id,
-        tags: {
-          connect: [{ id: tagsByName.get('broadway')!.id }, { id: tagsByName.get('housing')!.id }],
-        },
-      },
-    }),
-    prisma.article.create({
-      data: {
-        title: 'Rent Stabilization Hearing Draws Packed Crowd',
-        content: 'Tenants and landlords testified for hours at a public forum.',
-        status: ArticleStatus.ARCHIVED,
-        authorId: editor.id,
-        categoryId: categories[1].id,
-        tags: {
-          connect: [{ id: tagsByName.get('housing')!.id }],
-        },
-      },
-    }),
-    prisma.article.create({
-      data: {
-        title: 'Weekend Guide: Five Exhibits Worth Your Time',
-        content: 'A curated shortlist of new shows across Manhattan and Brooklyn.',
-        status: ArticleStatus.DRAFT,
-        authorId: admin.id,
-        categoryId: categories[0].id,
-        tags: {
-          connect: [{ id: tagsByName.get('broadway')!.id }, { id: tagsByName.get('subway')!.id }],
-        },
-      },
-    }),
-  ]);
+  const metroTopics = [
+    'Subway reliability report',
+    'Neighborhood compost rollout',
+    'Bus lane enforcement update',
+    'Emergency response drill',
+    'Weekend street fair logistics',
+  ];
+  const politicsTopics = [
+    'City budget hearing',
+    'Council oversight session',
+    'School funding debate',
+    'Mayoral policy briefing',
+    'Housing committee vote',
+  ];
+  const cultureTopics = [
+    'Broadway preview',
+    'Museum late-night program',
+    'Public library author series',
+    'Borough arts residency',
+    'Film festival lineup',
+  ];
 
-  await Promise.all([
-    prisma.comment.create({
-      data: {
-        content: 'Good reporting and clear sourcing.',
-        articleId: articles[0].id,
-        authorId: editor.id,
-      },
-    }),
-    prisma.comment.create({
-      data: {
-        content: 'Would like to see neighborhood-level turnout numbers.',
-        articleId: articles[1].id,
-        authorId: admin.id,
-      },
-    }),
-    prisma.comment.create({
-      data: {
-        content: 'Great roundup, especially the Queens picks.',
-        articleId: articles[2].id,
-        authorId: editor.id,
-      },
-    }),
-  ]);
+  const allTopics = [...metroTopics, ...politicsTopics, ...cultureTopics];
+  const statuses: ArticleStatus[] = [
+    ...Array.from({ length: 36 }, () => ArticleStatus.PUBLISHED),
+    ...Array.from({ length: 8 }, () => ArticleStatus.DRAFT),
+    ...Array.from({ length: 6 }, () => ArticleStatus.ARCHIVED),
+  ];
+
+  const articleSeeds = Array.from({ length: 50 }, (_, i) => {
+    const category = categories[i % categories.length];
+    const topic = allTopics[i % allTopics.length];
+    const district = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'][i % 5];
+    const title = `${topic} Draws Focus in ${district}`;
+    const content = [
+      `City officials released a detailed update on ${topic.toLowerCase()} with a focus on ${district}.`,
+      'The briefing included timelines, staffing plans, and a breakdown of expected neighborhood impact over the next quarter.',
+      'Residents and local organizations raised practical concerns about implementation costs, communication gaps, and weekend service continuity.',
+      'Agency leaders said they will publish weekly progress notes and adjust milestones based on ridership and community feedback data.',
+    ].join(' ');
+
+    const status = statuses[i];
+    const authorId = i % 2 === 0 ? admin.id : editor.id;
+
+    const tagTriples = [
+      ['cityhall', 'budget', 'public-safety'],
+      ['subway', 'transit', 'small-business'],
+      ['housing', 'schools', 'parks'],
+      ['elections', 'cityhall', 'health'],
+      ['broadway', 'small-business', 'parks'],
+    ] as const;
+    const selectedTags = tagTriples[i % tagTriples.length];
+
+    return {
+      title,
+      content,
+      status,
+      authorId,
+      categoryId: category.id,
+      tags: selectedTags.map((name) => ({ id: tagsByName.get(name)!.id })),
+    };
+  });
+
+  const articles = await Promise.all(
+    articleSeeds.map((seed) =>
+      prisma.article.create({
+        data: {
+          title: seed.title,
+          content: seed.content,
+          status: seed.status,
+          authorId: seed.authorId,
+          categoryId: seed.categoryId,
+          tags: {
+            connect: seed.tags,
+          },
+        },
+      }),
+    ),
+  );
+
+  await Promise.all(
+    articles.slice(0, 12).map((article, i) =>
+      prisma.comment.create({
+        data: {
+          content: `Reader note ${i + 1}: useful context with clear local implications.`,
+          articleId: article.id,
+          authorId: i % 2 === 0 ? editor.id : admin.id,
+        },
+      }),
+    ),
+  );
 }
 
 main()
