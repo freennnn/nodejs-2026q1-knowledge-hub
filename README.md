@@ -226,7 +226,7 @@ curl -s http://localhost:4000/ai/rag/chat/<conversationId>/history \
 ### Hybrid retrieval for `/ai/rag/search/hybrid`
 
 `/ai/rag/search/hybrid` uses a hybrid approach to improve recall and robustness.
-`/ai/rag/search` remains pure semantic vector search.
+`/ai/rag/search` pure semantic vector search.
 
 1. Compute query embedding via Gemini.
 2. Run vector search in Qdrant for semantic candidates (expanded pool, not just final `limit`).
