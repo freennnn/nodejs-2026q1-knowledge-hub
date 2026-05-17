@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { GeminiService } from '@/ai/providers/gemini.service';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
@@ -8,7 +8,8 @@ import { buildArticleContentHash } from '@/rag/chunking/build-article-content-ha
 import { chunkArticleText } from '@/rag/chunking/chunk-article-text';
 import type { ReindexRequestDto } from '@/rag/dto/reindex-request.dto';
 import type { ReindexResponseDto } from '@/rag/dto/reindex-response.dto';
-import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
+import type { RagEnv } from '@/rag/rag-env';
+import { RAG_ENV } from '@/rag/rag.tokens';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
 import type { RagArticleVectorPoint } from '@/rag/vector-store/vector-store.types';
 
@@ -24,7 +25,7 @@ export class RagArticleIndexService {
     private readonly prisma: PrismaService,
     private readonly geminiService: GeminiService,
     private readonly vectorStore: QdrantVectorStoreService,
-    private readonly env: RagEnv = loadRagEnv(),
+    @Inject(RAG_ENV) private readonly env: RagEnv,
   ) {}
 
   async reindex(dto: ReindexRequestDto): Promise<ReindexResponseDto> {

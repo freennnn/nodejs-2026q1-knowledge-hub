@@ -1,7 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { QdrantClient } from '@qdrant/js-client-rest';
 import type { Schemas } from '@qdrant/js-client-rest';
-import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
+import type { RagEnv } from '@/rag/rag-env';
+import { QDRANT_CLIENT, RAG_ENV } from '@/rag/rag.tokens';
 import type { VectorStore } from '@/rag/vector-store/vector-store.interface';
 import type {
   RagArticleSearchFilter,
@@ -19,13 +20,16 @@ export class QdrantVectorStoreService implements VectorStore {
   private readonly collectionName: string;
   private collectionReady = false;
 
-  constructor(env: RagEnv = loadRagEnv(), client?: QdrantClient) {
+  constructor(
+    @Inject(RAG_ENV) env: RagEnv,
+    @Inject(QDRANT_CLIENT) client: QdrantClient,
+  ) {
     this.env = env;
     if (this.env.vectorDbProvider !== 'qdrant') {
       throw new Error(`Unsupported RAG_VECTOR_DB_PROVIDER: ${this.env.vectorDbProvider}`);
     }
     this.collectionName = this.env.vectorCollection;
-    this.client = client ?? new QdrantClient({ url: this.env.vectorDbUrl });
+    this.client = client;
   }
 
   async ensureCollection(): Promise<void> {

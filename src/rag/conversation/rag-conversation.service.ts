@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { loadRagEnv, type RagEnv } from '@/rag/rag-env';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { RagEnv } from '@/rag/rag-env';
+import { RAG_ENV } from '@/rag/rag.tokens';
 
 export type RagConversationMessage = {
   role: 'user' | 'assistant';
@@ -10,7 +11,7 @@ export type RagConversationMessage = {
 export class RagConversationService {
   private readonly conversations = new Map<string, RagConversationMessage[]>();
 
-  constructor(private readonly env: RagEnv = loadRagEnv()) {}
+  constructor(@Inject(RAG_ENV) private readonly env: RagEnv) {}
 
   getHistory(userId: string, conversationId: string): RagConversationMessage[] {
     const history = this.conversations.get(this.buildKey(userId, conversationId));

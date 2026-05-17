@@ -458,10 +458,14 @@ async function main() {
         'The civic technology office launched a small grant round for nonprofit tools that simplify ballot information and polling place lookup data. Election administrators said open standards could reduce confusion if products stay accessible on low-bandwidth mobile connections.',
     },
   ] as const;
+  const totalStories = storyDrafts.length;
+  const publishedCount = Math.round(totalStories * 0.72);
+  const draftCount = Math.round(totalStories * 0.16);
+  const archivedCount = totalStories - publishedCount - draftCount;
   const statuses: ArticleStatus[] = [
-    ...Array.from({ length: 36 }, () => ArticleStatus.PUBLISHED),
-    ...Array.from({ length: 8 }, () => ArticleStatus.DRAFT),
-    ...Array.from({ length: 6 }, () => ArticleStatus.ARCHIVED),
+    ...Array.from({ length: publishedCount }, () => ArticleStatus.PUBLISHED),
+    ...Array.from({ length: draftCount }, () => ArticleStatus.DRAFT),
+    ...Array.from({ length: archivedCount }, () => ArticleStatus.ARCHIVED),
   ];
   if (storyDrafts.length !== statuses.length) {
     throw new Error(
