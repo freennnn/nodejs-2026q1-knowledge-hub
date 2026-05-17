@@ -27,8 +27,8 @@ describe('loadRagEnv', () => {
     expect(env.vectorDbProvider).toBe('qdrant');
     expect(env.vectorDbUrl).toBe('http://localhost:6333');
     expect(env.vectorCollection).toBe('knowledge_hub_articles');
-    expect(env.chunkSize).toBe(800);
-    expect(env.chunkOverlap).toBe(200);
+    expect(env.chunkSize).toBe(220);
+    expect(env.chunkOverlap).toBe(60);
     expect(env.chunkLocale).toBe('en');
     expect(env.conversationMaxMessages).toBe(20);
   });

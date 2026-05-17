@@ -21,8 +21,8 @@ export type RagEnv = {
 };
 
 export function loadRagEnv(): RagEnv {
-  const chunkSize = Number(process.env.RAG_CHUNK_SIZE ?? 800);
-  const chunkOverlap = Number(process.env.RAG_CHUNK_OVERLAP ?? 200);
+  const chunkSize = Number(process.env.RAG_CHUNK_SIZE ?? 220);
+  const chunkOverlap = Number(process.env.RAG_CHUNK_OVERLAP ?? 60);
   const geminiEmbeddingDimension = Number(process.env.GEMINI_EMBEDDING_DIMENSION ?? 768);
   if (chunkOverlap >= chunkSize) {
     throw new Error('RAG_CHUNK_OVERLAP must be strictly less than RAG_CHUNK_SIZE');
