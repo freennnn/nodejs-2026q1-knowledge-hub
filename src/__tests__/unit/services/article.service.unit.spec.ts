@@ -1,10 +1,11 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ArticleService } from '@/article/article.service';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import { UserRole } from '@/common/enums/user-role.enum';
+import { RagArticleIndexService } from '@/rag/rag-article-index.service';
 import { articleDto, authUsers, ids, prismaArticle } from '../fixtures';
 import { createPrismaMock, prismaMockProvider, type PrismaMock } from '../mocks/prisma.mock';
 
@@ -14,8 +15,16 @@ describe('ArticleService', () => {
 
   beforeEach(async () => {
     prisma = createPrismaMock();
+    const ragArticleIndexService = {
+      syncArticle: vi.fn().mockResolvedValue(undefined),
+      removeArticleVectors: vi.fn().mockResolvedValue(undefined),
+    };
     const moduleRef = await Test.createTestingModule({
-      providers: [ArticleService, prismaMockProvider(prisma)],
+      providers: [
+        ArticleService,
+        prismaMockProvider(prisma),
+        { provide: RagArticleIndexService, useValue: ragArticleIndexService },
+      ],
     }).compile();
 
     service = moduleRef.get(ArticleService);

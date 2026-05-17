@@ -12,7 +12,8 @@ export class GenericPromptResponseDto {
   tokenUsage!: AiTokenUsageDto;
 
   @ApiProperty({
-    description: 'Conversation session id. Reuse it in the next /ai/generate call to preserve context.',
+    description:
+      'Conversation session id. Reuse it in the next /ai/generate call to preserve context.',
   })
   sessionId!: string;
 }

@@ -102,6 +102,160 @@ npm run start:dev
 
 With this DB-only flow, Prisma generation and migrations are manual because the Compose `migrate` service only runs during the full Compose app flow.
 
+### Updated local flow (app local, DB + Qdrant in Docker)
+
+1. Start infra:
+
+```bash
+docker compose up -d db vectordb
+```
+
+2. Prepare DB (same as before):
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate:deploy
+```
+
+Optional:
+
+```bash
+npm run prisma:seed
+```
+
+3. Start app locally:
+
+```bash
+npm run start:dev
+```
+
+4. Build vector index (new):
+
+- get token
+- call `POST /ai/rag/index` (for example with `{"onlyPublished": false}`)
+
+After that, `/ai/rag/search` and `/ai/rag/chat` are meaningful.
+
+## RAG + Vector DB
+
+### Models used
+
+- Embedding model: `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`
+- Embedding vector size: `GEMINI_EMBEDDING_DIMENSION=768` (must match Qdrant collection vector size)
+
+### Vector DB used
+
+- Provider: **Qdrant** (`qdrant/qdrant` image)
+- Service in Compose: `vectordb`
+- Ports: `6333` (REST), `6334` (gRPC)
+- Persistent volume: `qdrant_data`
+- The app container connects internally via `http://vectordb:6333` (Compose env override).
+- Qdrant gets data when you call `POST /ai/rag/index` (bulk index build/refresh), and also from article CRUD flows (`POST /article`, `PATCH /article/:id`, `DELETE /article/:id`) which sync/remove vectors for affected articles.
+
+### Full startup flow after clone
+
+1. Copy env template:
+
+```bash
+cp .env.example .env
+```
+
+2. Set a valid `GEMINI_API_KEY` in `.env`.
+
+3. Start full stack (app + PostgreSQL + Qdrant + migrate):
+
+```bash
+docker compose up --build
+```
+
+4. (Optional) seed demo data:
+
+```bash
+docker compose --profile seed run --rm seed
+```
+
+5. Get access token (seeded admin):
+
+```bash
+ACCESS_TOKEN=$(curl -s -X POST http://localhost:4000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"login":"ny_news_admin","password":"admin123"}' | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).accessToken")
+```
+
+6. Build/refresh vector index:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/index \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"onlyPublished":false}'
+```
+
+7. Semantic search request:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/search \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"How are DTOs validated?","limit":5}'
+```
+
+8. RAG chat request:
+
+```bash
+curl -s -X POST http://localhost:4000/ai/rag/chat \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Summarize how this API validates input"}'
+```
+
+9. Optional conversation history inspection:
+
+```bash
+curl -s http://localhost:4000/ai/rag/chat/<conversationId>/history \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### RAG known limitations
+
+- Gemini free-tier quotas can cause temporary rate limiting/overload responses.
+- Latency varies by region and current provider load.
+- Initial indexing time grows with article count and chunk count.
+- Regional availability of Gemini models/features can vary by account/location.
+- RAG conversation memory is in-memory only (cleared on service restart).
+
+### Hybrid retrieval for `/ai/rag/search/hybrid`
+
+`/ai/rag/search/hybrid` uses a hybrid approach to improve recall and robustness.
+`/ai/rag/search` pure semantic vector search.
+
+1. Compute query embedding via Gemini.
+2. Run vector search in Qdrant for semantic candidates (expanded pool, not just final `limit`).
+3. Run PostgreSQL lexical retrieval using full-text search over `Article.title + Article.content`:
+   - `to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,''))`
+   - `@@ plainto_tsquery('english', :query)`
+   - ordered by `ts_rank_cd(...) DESC`.
+4. Take lexical candidate `articleId`s and run an extra vector search constrained to those ids.
+5. Merge both candidate lists using Reciprocal Rank Fusion (RRF), then return top `limit`.
+
+Applied filters (`articleStatus`, `categoryId`, `tags`) are respected in both lexical and vector phases.
+
+RRF formula used for each candidate:
+
+`RRF score = 1 / (k + semanticRank) + 1 / (k + lexicalRank)`
+
+Current constants in code:
+
+- `k = 60` (RRF damping).
+- candidate expansion factor: `4x` requested limit.
+- max candidate cap per phase: `40`.
+
+Why this helps:
+
+- semantic retrieval captures paraphrases/similar meaning;
+- lexical retrieval captures exact term intent and rare keywords;
+- fusion reduces failure cases where one signal alone misses relevant chunks.
+
 ## Reviewer Quickstart (AI endpoints)
 
 Use this section to run the app end-to-end and try all AI routes quickly.
@@ -233,6 +387,83 @@ curl -s -X POST "http://localhost:4000/ai/generate" \
 
 ```
 {"text":"Brest is home to the University of Western Brittany (UBO). The Pont de Recouvrance in Brest is one of the largest vertical-lift bridges in Europe.","cacheHit":false,"tokenUsage":{"prompt":144,"candidates":39,"total":183},"sessionId":"640d47db-5714-454b-b178-d66f384c1135"}%
+```
+
+6. Test RAG endpoints (index/search/hybrid/chat/history/delete):
+
+Build or refresh vector index:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/index" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"onlyPublished":false}'
+```
+
+```
+{
+    "indexedArticles": 53,
+    "indexedChunks": 53,
+    "vectorCollection": "knowledge_hub_articles"
+}
+```
+
+Semantic RAG search:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/search" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What changed in transit operations this week?","limit":5}'
+```
+
+Hybrid RAG search:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/search/hybrid" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Budget updates for housing programs","limit":5,"articleStatus":"PUBLISHED","tags":["budget","housing"]}'
+```
+
+RAG chat:
+
+```bash
+RAG_CHAT_RESPONSE=$(curl -s -X POST "http://localhost:4000/ai/rag/chat" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Summarize the latest city budget and housing updates in plain language."}')
+echo "$RAG_CHAT_RESPONSE"
+```
+
+Extract `conversationId` from chat response:
+
+```bash
+RAG_CONVERSATION_ID=$(printf '%s' "$RAG_CHAT_RESPONSE" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).conversationId")
+echo "$RAG_CONVERSATION_ID"
+```
+
+Get RAG chat history:
+
+```bash
+curl -s "http://localhost:4000/ai/rag/chat/$RAG_CONVERSATION_ID/history" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Delete vectors for one article (returns 204 on success):
+
+```bash
+curl -i -X DELETE "http://localhost:4000/ai/rag/index/articles/$ARTICLE_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Re-index one article after delete:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/index" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"articleIds\":[\"$ARTICLE_ID\"],\"onlyPublished\":false}"
 ```
 
 Optional usage stats (admin only):

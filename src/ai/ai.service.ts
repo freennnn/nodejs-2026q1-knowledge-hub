@@ -13,12 +13,18 @@ import { GeminiService } from './providers/gemini.service';
 import { TranslateArticleResponseDto } from './dto/translate-article.response.dto';
 import { SummarizeArticleResponseDto } from './dto/summarize-article.response.dto';
 import type { SummarizeMaxLength } from './dto/summarize-max-length';
-import { AnalyzeArticleTask, type AnalyzeArticleTask as AnalyzeArticleTaskType } from './dto/analyze-article.dto';
+import {
+  AnalyzeArticleTask,
+  type AnalyzeArticleTask as AnalyzeArticleTaskType,
+} from './dto/analyze-article.dto';
 import { AnalyzeArticleResponseDto } from './dto/analyze-article.response.dto';
 import { GenericPromptDto } from './dto/generic-prompt.dto';
 import { GenericPromptResponseDto } from './dto/generic-prompt.response.dto';
 import { AiCacheService } from './cache/ai-cache.service';
-import { AiConversationContextService, type ConversationTurn } from './cache/ai-conversation-context.service';
+import {
+  AiConversationContextService,
+  type ConversationTurn,
+} from './cache/ai-conversation-context.service';
 import { AiRequestLogService } from './tracking/ai-request-log.service';
 import { AiUsageService } from './tracking/ai-usage.service';
 
@@ -405,7 +411,11 @@ export class AiService {
     const conversationHistory = this.aiConversationContextService
       .getRecentTurns(actor.userId, sessionId)
       .slice(-GENERIC_PROMPT_CONTEXT_LIMIT);
-    const promptHash = this.buildGenericPromptRequestPayloadHash(dto, sessionId, conversationHistory);
+    const promptHash = this.buildGenericPromptRequestPayloadHash(
+      dto,
+      sessionId,
+      conversationHistory,
+    );
 
     if (useCache) {
       const cacheKey = this.buildGenericPromptCacheKey(promptHash);
@@ -519,11 +529,7 @@ export class AiService {
 
     const effectiveTask = task ?? AnalyzeArticleTask.REVIEW;
 
-    const cacheKey = this.buildAnalyzeArticleCacheKey(
-      article.id,
-      article.updatedAt,
-      effectiveTask,
-    );
+    const cacheKey = this.buildAnalyzeArticleCacheKey(article.id, article.updatedAt, effectiveTask);
     const cached = this.aiCacheService.get<CachedAnalyze>(cacheKey);
     if (cached) {
       const result = this.buildAnalyzeHttpResult(
@@ -554,7 +560,10 @@ export class AiService {
     }
 
     try {
-      const analyzed = await this.geminiService.analyzeArticleContent(article.content, effectiveTask);
+      const analyzed = await this.geminiService.analyzeArticleContent(
+        article.content,
+        effectiveTask,
+      );
       this.aiUsageService.recordTokens(analyzed.usage);
       this.aiCacheService.set(cacheKey, analyzed.data);
 

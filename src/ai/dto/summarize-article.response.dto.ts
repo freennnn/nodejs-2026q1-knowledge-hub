@@ -9,12 +9,14 @@ export class SummarizeArticleResponseDto {
   summary!: string;
 
   @ApiProperty({
-    description: 'Article content length in JavaScript string UTF-16 code units (same as String.prototype.length)',
+    description:
+      'Article content length in JavaScript string UTF-16 code units (same as String.prototype.length)',
   })
   originalLength!: number;
 
   @ApiProperty({
-    description: 'Summary length in JavaScript string UTF-16 code units (same as String.prototype.length)',
+    description:
+      'Summary length in JavaScript string UTF-16 code units (same as String.prototype.length)',
   })
   summaryLength!: number;
 

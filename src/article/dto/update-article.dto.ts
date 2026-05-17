@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsArray, IsIn, IsOptional, IsString, IsUUID, ValidateIf } from 'class-validator';
+import { toNullableUuidInput } from '@/common/dto/nullable-uuid-input';
 import { ARTICLE_STATUS_VALUES, ArticleStatus } from '@/common/enums/article-status.enum';
 
 export class UpdateArticleDto {
@@ -25,7 +27,7 @@ export class UpdateArticleDto {
   authorId?: string | null;
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  @ValidateIf((_, v) => v !== null)
+  @Transform(({ value }) => toNullableUuidInput(value))
   @IsUUID('4')
   @IsOptional()
   categoryId?: string | null;

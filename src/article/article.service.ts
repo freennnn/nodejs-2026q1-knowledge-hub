@@ -1,10 +1,11 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import { UserRole } from '@/common/enums/user-role.enum';
 import { AuthUser } from '@/auth/types/auth-user.type';
 import { Article } from '@/common/types/article';
 import { Article as PrismaArticle, ArticleStatus as PrismaArticleStatus } from '@prisma/client';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
+import { RagArticleIndexService } from '@/rag/rag-article-index.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { ListArticlesQueryDto } from './dto/list-articles.query.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
@@ -21,7 +22,12 @@ const appToPrismaArticleStatus = Object.fromEntries(
 
 @Injectable()
 export class ArticleService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ArticleService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ragArticleIndexService: RagArticleIndexService,
+  ) {}
 
   async findAll(query: ListArticlesQueryDto): Promise<Article[]> {
     const articles = await this.prisma.article.findMany({
@@ -73,17 +79,19 @@ export class ArticleService {
       },
     });
 
-    return this.toArticle(created);
+    const article = this.toArticle(created);
+    await this.ragArticleIndexService.syncArticle(article);
+    return article;
   }
 
   async update(id: string, dto: UpdateArticleDto, actor: AuthUser): Promise<Article> {
-    const article = await this.prisma.article.findUnique({
+    const existing = await this.prisma.article.findUnique({
       where: { id },
       select: { id: true, authorId: true },
     });
-    if (!article) throw new NotFoundException(`Article with id "${id}" not found`);
+    if (!existing) throw new NotFoundException(`Article with id "${id}" not found`);
     // Editors can only update articles they currently own.
-    if (actor.role === UserRole.EDITOR && article.authorId !== actor.userId) {
+    if (actor.role === UserRole.EDITOR && existing.authorId !== actor.userId) {
       throw new ForbiddenException('Insufficient permissions for this operation');
     }
     // Editors cannot transfer or remove ownership while updating.
@@ -119,7 +127,9 @@ export class ArticleService {
       },
     });
 
-    return this.toArticle(updated);
+    const article = this.toArticle(updated);
+    await this.ragArticleIndexService.syncArticle(article);
+    return article;
   }
 
   async remove(id: string, actor: AuthUser): Promise<void> {
@@ -136,6 +146,13 @@ export class ArticleService {
     await this.prisma.article.delete({
       where: { id },
     });
+
+    try {
+      await this.ragArticleIndexService.removeArticleVectors(id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Failed to remove RAG vectors for deleted article ${id}: ${msg}`);
+    }
   }
 
   private toArticle(article: PrismaArticle & { tags: Array<{ name: string }> }): Article {

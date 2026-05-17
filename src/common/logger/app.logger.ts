@@ -192,9 +192,7 @@ export class AppLogger implements LoggerService {
     const params = entry.params?.length ? ` ${inspectValue(entry.params)}` : '';
     const trace = entry.trace ? `\n${entry.trace}` : '';
 
-    return `${entry.timestamp} ${entry.level.toUpperCase()}${context} ${inspectValue(
-      entry.message,
-    )}${params}${trace}`;
+    return `${entry.timestamp} ${entry.level.toUpperCase()}${context} ${inspectValue(entry.message)}${params}${trace}`;
   }
 
   private writeToConsole(level: AppLogLevel, line: string) {

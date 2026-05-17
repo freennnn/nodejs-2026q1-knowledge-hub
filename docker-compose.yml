@@ -21,6 +21,23 @@ services:
     networks:
       - knowledge_hub_net
 
+  vectordb:
+    image: qdrant/qdrant:v1.12.6
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:6333/readyz || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - knowledge_hub_net
+
   app:
     image: ${IMAGE_LOCAL_NAME}
     build:
@@ -29,10 +46,14 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      vectordb:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      # inside compose, use service DNS name instead of localhost
+      RAG_VECTOR_DB_URL: http://vectordb:6333
     ports:
       - '4000:4000'
     healthcheck:
@@ -95,3 +116,4 @@ networks:
 
 volumes:
   postgres_data:
+  qdrant_data:
