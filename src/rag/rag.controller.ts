@@ -97,6 +97,28 @@ export class RagController {
     });
   }
 
+  @ApiResponse({ status: 200, type: SemanticSearchResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 401, description: 'Missing or invalid access token' })
+  @ApiResponse({ status: 403, description: 'Insufficient role' })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests (same AI rate-limit bucket as other Gemini routes)',
+  })
+  @ApiResponse({ status: 502, description: 'Gemini embedding error' })
+  @ApiResponse({ status: 503, description: 'Vector database unavailable' })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
+  @HttpCode(200)
+  @Post('search/hybrid')
+  async hybridSearch(@Body() dto: SemanticSearchDto): Promise<SemanticSearchResponseDto> {
+    const limit = dto.limit ?? 5;
+    return this.ragSearchService.hybridSearch(dto.query, limit, {
+      categoryId: dto.categoryId,
+      articleStatus: dto.articleStatus,
+      tags: dto.tags,
+    });
+  }
+
   @ApiResponse({ status: 200, type: RagChatResponseDto })
   @ApiResponse({ status: 400, description: 'Validation failed' })
   @ApiResponse({ status: 401, description: 'Missing or invalid access token' })

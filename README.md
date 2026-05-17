@@ -223,6 +223,38 @@ curl -s http://localhost:4000/ai/rag/chat/<conversationId>/history \
 - Regional availability of Gemini models/features can vary by account/location.
 - RAG conversation memory is in-memory only (cleared on service restart).
 
+### Hybrid retrieval for `/ai/rag/search/hybrid`
+
+`/ai/rag/search/hybrid` uses a hybrid approach to improve recall and robustness.
+`/ai/rag/search` remains pure semantic vector search.
+
+1. Compute query embedding via Gemini.
+2. Run vector search in Qdrant for semantic candidates (expanded pool, not just final `limit`).
+3. Run PostgreSQL lexical retrieval using full-text search over `Article.title + Article.content`:
+   - `to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,''))`
+   - `@@ plainto_tsquery('english', :query)`
+   - ordered by `ts_rank_cd(...) DESC`.
+4. Take lexical candidate `articleId`s and run an extra vector search constrained to those ids.
+5. Merge both candidate lists using Reciprocal Rank Fusion (RRF), then return top `limit`.
+
+Applied filters (`articleStatus`, `categoryId`, `tags`) are respected in both lexical and vector phases.
+
+RRF formula used for each candidate:
+
+`RRF score = 1 / (k + semanticRank) + 1 / (k + lexicalRank)`
+
+Current constants in code:
+
+- `k = 60` (RRF damping).
+- candidate expansion factor: `4x` requested limit.
+- max candidate cap per phase: `40`.
+
+Why this helps:
+
+- semantic retrieval captures paraphrases/similar meaning;
+- lexical retrieval captures exact term intent and rare keywords;
+- fusion reduces failure cases where one signal alone misses relevant chunks.
+
 ## Reviewer Quickstart (AI endpoints)
 
 Use this section to run the app end-to-end and try all AI routes quickly.

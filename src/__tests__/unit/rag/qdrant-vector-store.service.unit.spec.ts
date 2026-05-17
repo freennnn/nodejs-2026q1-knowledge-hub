@@ -159,4 +159,44 @@ describe('QdrantVectorStoreService', () => {
       }),
     );
   });
+
+  it('adds OR articleId constraints via should conditions', async () => {
+    const getCollections = vi.fn().mockResolvedValue({
+      collections: [{ name: 'test_articles' }],
+    });
+    const search = vi.fn().mockResolvedValue([]);
+    const client = {
+      getCollections,
+      createCollection: vi.fn(),
+      search,
+    } as unknown as QdrantClient;
+    const service = new QdrantVectorStoreService(testEnv(), client);
+
+    await service.search([0.5, 0.4], 3, {
+      articleStatus: ArticleStatus.PUBLISHED,
+      articleIds: [
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000002',
+      ],
+    });
+
+    expect(search).toHaveBeenCalledWith(
+      'test_articles',
+      expect.objectContaining({
+        filter: {
+          must: [{ key: 'status', match: { value: ArticleStatus.PUBLISHED } }],
+          should: [
+            {
+              key: 'articleId',
+              match: { value: '00000000-0000-4000-8000-000000000001' },
+            },
+            {
+              key: 'articleId',
+              match: { value: '00000000-0000-4000-8000-000000000002' },
+            },
+          ],
+        },
+      }),
+    );
+  });
 });

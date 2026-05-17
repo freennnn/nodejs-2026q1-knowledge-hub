@@ -16,7 +16,7 @@ const prismaToAppArticleStatus = {
   [PrismaArticleStatus.DRAFT]: ArticleStatus.DRAFT,
   [PrismaArticleStatus.PUBLISHED]: ArticleStatus.PUBLISHED,
   [PrismaArticleStatus.ARCHIVED]: ArticleStatus.ARCHIVED,
-} as const;
+} as const satisfies Record<PrismaArticleStatus, ArticleStatus>;
 
 @Injectable()
 export class RagArticleIndexService {

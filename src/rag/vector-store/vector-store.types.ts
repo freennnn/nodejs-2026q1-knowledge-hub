@@ -25,6 +25,7 @@ export type RagArticleSearchFilter = {
   articleStatus?: ArticleStatus;
   categoryId?: string | null;
   tags?: string[];
+  articleIds?: string[];
 };
 
 // Similarity-search row: which point matched, score, payload — not the full stored point (no embedding here).

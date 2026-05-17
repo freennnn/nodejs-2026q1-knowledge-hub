@@ -116,6 +116,16 @@ export class QdrantVectorStoreService implements VectorStore {
         must.push({ key: 'tags', match: { value: tag } });
       }
     }
+    if (filter.articleIds?.length) {
+      const should = filter.articleIds.map((id) => ({
+        key: 'articleId',
+        match: { value: id },
+      }));
+      return {
+        ...(must.length > 0 ? { must } : {}),
+        should,
+      };
+    }
     return must.length > 0 ? { must } : undefined;
   }
 
