@@ -70,6 +70,7 @@ const GEMINI_429_BASE_BACKOFF_MS = 500;
 const GEMINI_429_MAX_JITTER_MS = 250;
 /** Conservative batch size for `batchEmbedContents` (API limit is not documented tightly). */
 const GEMINI_EMBED_BATCH_MAX = 100;
+const GEMINI_EMBEDDING_DIMENSION_DEFAULT = 768;
 
 type GeminiBatchEmbedResponse = {
   embeddings?: Array<{ values?: number[] }>;
@@ -80,7 +81,8 @@ export class GeminiService {
   private readonly apiBaseUrl =
     process.env.GEMINI_API_BASE_URL ?? 'https://generativelanguage.googleapis.com';
   private readonly model = process.env.GEMINI_MODEL ?? 'gemini-2.5-flash';
-  private readonly embeddingModel = process.env.GEMINI_EMBEDDING_MODEL ?? 'text-embedding-004';
+  private readonly embeddingModel = process.env.GEMINI_EMBEDDING_MODEL ?? 'gemini-embedding-001';
+  private readonly embeddingDimension = this.loadEmbeddingDimension();
 
   constructor(private readonly httpService: HttpService) {}
 
@@ -233,6 +235,7 @@ export class GeminiService {
           requests: batch.map((text) => ({
             model: modelResource,
             content: { parts: [{ text }] },
+            outputDimensionality: this.embeddingDimension,
           })),
         };
         const data = await this.postBatchEmbedContents(body);
@@ -325,7 +328,11 @@ export class GeminiService {
   }
 
   private async postBatchEmbedContents(body: {
-    requests: Array<{ model: string; content: { parts: Array<{ text: string }> } }>;
+    requests: Array<{
+      model: string;
+      content: { parts: Array<{ text: string }> };
+      outputDimensionality: number;
+    }>;
   }): Promise<GeminiBatchEmbedResponse> {
     const apiKey = this.requireApiKey();
     const url = `${this.apiBaseUrl}/v1beta/models/${this.embeddingModel}:batchEmbedContents`;
@@ -594,6 +601,20 @@ export class GeminiService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private loadEmbeddingDimension(): number {
+    const raw = process.env.GEMINI_EMBEDDING_DIMENSION;
+    if (!raw) {
+      return GEMINI_EMBEDDING_DIMENSION_DEFAULT;
+    }
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new InternalServerErrorException(
+        'GEMINI_EMBEDDING_DIMENSION must be a positive integer',
+      );
+    }
+    return parsed;
   }
 
   private extractJsonObjectFromModelText(responseText: string): string {

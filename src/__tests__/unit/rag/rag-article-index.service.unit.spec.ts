@@ -8,7 +8,8 @@ import type { RagEnv } from '@/rag/rag-env';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
 
 const env: RagEnv = {
-  geminiEmbeddingModel: 'text-embedding-004',
+  geminiEmbeddingModel: 'gemini-embedding-001',
+  geminiEmbeddingDimension: 768,
   vectorDbProvider: 'qdrant',
   vectorDbUrl: 'http://localhost:6333',
   vectorCollection: 'knowledge_hub_articles',

@@ -20,7 +20,8 @@ describe('GeminiService embedTexts', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     process.env.GEMINI_API_KEY = 'test-key';
-    process.env.GEMINI_EMBEDDING_MODEL = 'text-embedding-004';
+    process.env.GEMINI_EMBEDDING_MODEL = 'gemini-embedding-001';
+    process.env.GEMINI_EMBEDDING_DIMENSION = '768';
   });
 
   it('returns empty array for empty input without calling HTTP', async () => {
@@ -50,12 +51,20 @@ describe('GeminiService embedTexts', () => {
       [0.3, 0.4],
     ]);
     expect(post).toHaveBeenCalledTimes(1);
-    const [url, body] = post.mock.calls[0];
-    expect(url).toContain('text-embedding-004:batchEmbedContents');
-    expect(body).toEqual({
+    const firstCall = post.mock.calls[0] as unknown[] | undefined;
+    expect(firstCall?.[0]).toContain('gemini-embedding-001:batchEmbedContents');
+    expect(firstCall?.[1]).toEqual({
       requests: [
-        { model: 'models/text-embedding-004', content: { parts: [{ text: 'hello' }] } },
-        { model: 'models/text-embedding-004', content: { parts: [{ text: 'world' }] } },
+        {
+          model: 'models/gemini-embedding-001',
+          content: { parts: [{ text: 'hello' }] },
+          outputDimensionality: 768,
+        },
+        {
+          model: 'models/gemini-embedding-001',
+          content: { parts: [{ text: 'world' }] },
+          outputDimensionality: 768,
+        },
       ],
     });
   });

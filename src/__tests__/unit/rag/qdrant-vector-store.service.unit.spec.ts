@@ -3,12 +3,13 @@ import type { QdrantClient } from '@qdrant/js-client-rest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RagEnv } from '@/rag/rag-env';
 import { QdrantVectorStoreService } from '@/rag/vector-store/qdrant-vector-store.service';
-import { TEXT_EMBEDDING_004_VECTOR_SIZE } from '@/rag/vector-store/vector-store.types';
+import { DEFAULT_GEMINI_EMBEDDING_DIMENSION } from '@/rag/vector-store/vector-store.types';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 
 function testEnv(overrides: Partial<RagEnv> = {}): RagEnv {
   return {
-    geminiEmbeddingModel: 'text-embedding-004',
+    geminiEmbeddingModel: 'gemini-embedding-001',
+    geminiEmbeddingDimension: DEFAULT_GEMINI_EMBEDDING_DIMENSION,
     vectorDbProvider: 'qdrant',
     vectorDbUrl: 'http://localhost:6333',
     vectorCollection: 'test_articles',
@@ -34,7 +35,7 @@ describe('QdrantVectorStoreService', () => {
     await service.ensureCollection();
 
     expect(createCollection).toHaveBeenCalledWith('test_articles', {
-      vectors: { size: TEXT_EMBEDDING_004_VECTOR_SIZE, distance: 'Cosine' },
+      vectors: { size: DEFAULT_GEMINI_EMBEDDING_DIMENSION, distance: 'Cosine' },
     });
   });
 

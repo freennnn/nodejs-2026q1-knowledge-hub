@@ -10,7 +10,6 @@ import type {
   RagArticleSearchResult,
   RagArticleVectorPoint,
 } from '@/rag/vector-store/vector-store.types';
-import { TEXT_EMBEDDING_004_VECTOR_SIZE } from '@/rag/vector-store/vector-store.types';
 
 @Injectable()
 export class QdrantVectorStoreService implements VectorStore {
@@ -42,7 +41,7 @@ export class QdrantVectorStoreService implements VectorStore {
       if (!exists) {
         await this.client.createCollection(this.collectionName, {
           vectors: {
-            size: TEXT_EMBEDDING_004_VECTOR_SIZE,
+            size: this.env.geminiEmbeddingDimension,
             distance: 'Cosine',
           },
         });

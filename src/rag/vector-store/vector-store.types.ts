@@ -36,5 +36,5 @@ export type RagArticleSearchResult = {
   payload: RagArticleSearchPayload;
 };
 
-// Default output dimension for `text-embedding-004` (Gemini).
-export const TEXT_EMBEDDING_004_VECTOR_SIZE = 768;
+// Default output dimension configured for Gemini embeddings in this project.
+export const DEFAULT_GEMINI_EMBEDDING_DIMENSION = 768;

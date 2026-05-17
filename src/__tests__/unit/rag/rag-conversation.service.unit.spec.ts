@@ -5,7 +5,8 @@ import { RagConversationService } from '@/rag/conversation/rag-conversation.serv
 describe('RagConversationService', () => {
   it('stores history scoped by userId + conversationId', () => {
     const service = new RagConversationService({
-      geminiEmbeddingModel: 'text-embedding-004',
+      geminiEmbeddingModel: 'gemini-embedding-001',
+      geminiEmbeddingDimension: 768,
       vectorDbProvider: 'qdrant',
       vectorDbUrl: 'http://localhost:6333',
       vectorCollection: 'knowledge_hub_articles',
@@ -25,7 +26,8 @@ describe('RagConversationService', () => {
 
   it('keeps only last N messages and throws NotFound when empty', () => {
     const service = new RagConversationService({
-      geminiEmbeddingModel: 'text-embedding-004',
+      geminiEmbeddingModel: 'gemini-embedding-001',
+      geminiEmbeddingDimension: 768,
       vectorDbProvider: 'qdrant',
       vectorDbUrl: 'http://localhost:6333',
       vectorCollection: 'knowledge_hub_articles',

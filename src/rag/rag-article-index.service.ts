@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ArticleStatus as PrismaArticleStatus } from '@prisma/client';
+import { v5 as uuidv5 } from 'uuid';
 import { GeminiService } from '@/ai/providers/gemini.service';
 import { ArticleStatus } from '@/common/enums/article-status.enum';
 import type { Article } from '@/common/types/article';
@@ -18,6 +19,7 @@ const prismaToAppArticleStatus = {
   [PrismaArticleStatus.PUBLISHED]: ArticleStatus.PUBLISHED,
   [PrismaArticleStatus.ARCHIVED]: ArticleStatus.ARCHIVED,
 } as const satisfies Record<PrismaArticleStatus, ArticleStatus>;
+const RAG_POINT_ID_NAMESPACE = '7f9f2c7b-2862-4610-b1d2-8e87cc6465ab';
 
 @Injectable()
 export class RagArticleIndexService {
@@ -94,7 +96,7 @@ export class RagArticleIndexService {
     const contentHash = buildArticleContentHash(article);
 
     const points: RagArticleVectorPoint[] = chunks.map((chunk, chunkIndex) => ({
-      id: `${article.id}:${chunkIndex}`,
+      id: uuidv5(`${article.id}:${chunkIndex}`, RAG_POINT_ID_NAMESPACE),
       vector: embeddings[chunkIndex],
       payload: {
         articleId: article.id,

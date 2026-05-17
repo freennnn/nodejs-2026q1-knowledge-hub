@@ -140,7 +140,8 @@ After that, `/ai/rag/search` and `/ai/rag/chat` are meaningful.
 
 ### Models used
 
-- Embedding model: `GEMINI_EMBEDDING_MODEL=text-embedding-004`
+- Embedding model: `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`
+- Embedding vector size: `GEMINI_EMBEDDING_DIMENSION=768` (must match Qdrant collection vector size)
 
 ### Vector DB used
 
@@ -386,6 +387,83 @@ curl -s -X POST "http://localhost:4000/ai/generate" \
 
 ```
 {"text":"Brest is home to the University of Western Brittany (UBO). The Pont de Recouvrance in Brest is one of the largest vertical-lift bridges in Europe.","cacheHit":false,"tokenUsage":{"prompt":144,"candidates":39,"total":183},"sessionId":"640d47db-5714-454b-b178-d66f384c1135"}%
+```
+
+6. Test RAG endpoints (index/search/hybrid/chat/history/delete):
+
+Build or refresh vector index:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/index" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"onlyPublished":false}'
+```
+
+```
+{
+    "indexedArticles": 53,
+    "indexedChunks": 53,
+    "vectorCollection": "knowledge_hub_articles"
+}
+```
+
+Semantic RAG search:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/search" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What changed in transit operations this week?","limit":5}'
+```
+
+Hybrid RAG search:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/search/hybrid" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Budget updates for housing programs","limit":5,"articleStatus":"PUBLISHED","tags":["budget","housing"]}'
+```
+
+RAG chat:
+
+```bash
+RAG_CHAT_RESPONSE=$(curl -s -X POST "http://localhost:4000/ai/rag/chat" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Summarize the latest city budget and housing updates in plain language."}')
+echo "$RAG_CHAT_RESPONSE"
+```
+
+Extract `conversationId` from chat response:
+
+```bash
+RAG_CONVERSATION_ID=$(printf '%s' "$RAG_CHAT_RESPONSE" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).conversationId")
+echo "$RAG_CONVERSATION_ID"
+```
+
+Get RAG chat history:
+
+```bash
+curl -s "http://localhost:4000/ai/rag/chat/$RAG_CONVERSATION_ID/history" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Delete vectors for one article (returns 204 on success):
+
+```bash
+curl -i -X DELETE "http://localhost:4000/ai/rag/index/articles/$ARTICLE_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+Re-index one article after delete:
+
+```bash
+curl -s -X POST "http://localhost:4000/ai/rag/index" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"articleIds\":[\"$ARTICLE_ID\"],\"onlyPublished\":false}"
 ```
 
 Optional usage stats (admin only):

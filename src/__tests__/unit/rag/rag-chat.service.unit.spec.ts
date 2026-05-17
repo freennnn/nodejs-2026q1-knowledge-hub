@@ -32,7 +32,8 @@ describe('RagChatService', () => {
       }),
     } as unknown as RagSearchService;
     const ragConversationService = new RagConversationService({
-      geminiEmbeddingModel: 'text-embedding-004',
+      geminiEmbeddingModel: 'gemini-embedding-001',
+      geminiEmbeddingDimension: 768,
       vectorDbProvider: 'qdrant',
       vectorDbUrl: 'http://localhost:6333',
       vectorCollection: 'knowledge_hub_articles',
@@ -66,7 +67,8 @@ describe('RagChatService', () => {
       semanticSearch: vi.fn().mockResolvedValue({ results: [] }),
     } as unknown as RagSearchService;
     const ragConversationService = new RagConversationService({
-      geminiEmbeddingModel: 'text-embedding-004',
+      geminiEmbeddingModel: 'gemini-embedding-001',
+      geminiEmbeddingDimension: 768,
       vectorDbProvider: 'qdrant',
       vectorDbUrl: 'http://localhost:6333',
       vectorCollection: 'knowledge_hub_articles',
