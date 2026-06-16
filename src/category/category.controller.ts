@@ -11,6 +11,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '@/auth/decorators/roles.decorator';
+import { UserRole } from '@/common/enums/user-role.enum';
 import { PaginatedResponse } from '@/common/types/paginated-response';
 import { maybePaginate } from '@/common/utils/paginate';
 import { ListQueryDto } from '@/common/dto/list-query.dto';
@@ -26,34 +28,32 @@ export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @ApiResponse({ status: 200, type: [Object] })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
   @Get()
   async findAll(
     @Query() query: ListQueryDto, // global Transform() will pass empty {} if query is missing, which satisfys PaginationQueryDto with 2 optional fields
   ): Promise<Category[] | PaginatedResponse<Category>> {
     const categories = await this.categoryService.findAll();
-    const sorted = maybeSort(categories, query.sortBy, query.order, [
-      'id',
-      'name',
-      'description',
-    ]);
+    const sorted = maybeSort(categories, query.sortBy, query.order, ['id', 'name', 'description']);
     return maybePaginate(sorted, query);
   }
 
   @ApiResponse({ status: 200, type: Object })
+  @Roles(UserRole.ADMIN, UserRole.EDITOR, UserRole.VIEWER)
   @Get(':id')
-  async findOne(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<Category> {
+  async findOne(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<Category> {
     return this.categoryService.findOne(id);
   }
 
   @ApiResponse({ status: 201, type: Object })
+  @Roles(UserRole.ADMIN)
   @Post()
   async create(@Body() dto: CreateCategoryDto): Promise<Category> {
     return this.categoryService.create(dto);
   }
 
   @ApiResponse({ status: 200, type: Object })
+  @Roles(UserRole.ADMIN)
   @Put(':id')
   async update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -63,11 +63,10 @@ export class CategoryController {
   }
 
   @ApiResponse({ status: 204 })
+  @Roles(UserRole.ADMIN)
   @HttpCode(204)
   @Delete(':id')
-  async remove(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-  ): Promise<void> {
+  async remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string): Promise<void> {
     return this.categoryService.remove(id);
   }
 }

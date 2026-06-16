@@ -1,11 +1,7 @@
 import { PaginatedResponse } from '@/common/types/paginated-response';
 import { PaginationQueryDto } from '@/common/dto/pagination-query.dto';
 
-export function paginate<T>(
-  items: T[],
-  page: number,
-  limit: number,
-): PaginatedResponse<T> {
+export function paginate<T>(items: T[], page: number, limit: number): PaginatedResponse<T> {
   const total = items.length;
   const start = (page - 1) * limit;
   const data = items.slice(start, start + limit);

@@ -10,7 +10,7 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
   && npm ci \
   && apk del .build-deps
 
-COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY nest-cli.json tsconfig.json tsconfig.build.json tsconfig.seed.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 COPY src ./src
@@ -35,6 +35,8 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
 # copy from /app folder of build stage (completely different) to /app of prod stage
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/doc ./doc
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 

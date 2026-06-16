@@ -1,12 +1,15 @@
 import {
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { UserRole } from '@/common/enums/user-role.enum';
+import { AuthUser } from '@/auth/types/auth-user.type';
 import { Comment } from '@/common/types/comment';
 import { PrismaService } from '@/persistence/prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
-import { Comment as PrismaComment} from '@prisma/client'
+import { Comment as PrismaComment } from '@prisma/client';
 
 @Injectable()
 export class CommentService {
@@ -23,21 +26,22 @@ export class CommentService {
     const comment = await this.prisma.comment.findUnique({
       where: { id },
     });
-    if (!comment)
-      throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (!comment) throw new NotFoundException(`Comment with id "${id}" not found`);
     return this.toResponse(comment);
   }
 
-  async create(dto: CreateCommentDto): Promise<Comment> {
+  async create(dto: CreateCommentDto, actor: AuthUser): Promise<Comment> {
+    if (actor.role === UserRole.EDITOR && dto.authorId !== actor.userId) {
+      throw new ForbiddenException('Editors can only create their own comments');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const articleExists = await tx.article.findUnique({
         where: { id: dto.articleId },
         select: { id: true },
       });
       if (!articleExists) {
-        throw new UnprocessableEntityException(
-          `Article with id "${dto.articleId}" not found`,
-        );
+        throw new UnprocessableEntityException(`Article with id "${dto.articleId}" not found`);
       }
 
       const created = await tx.comment.create({
@@ -51,13 +55,15 @@ export class CommentService {
     });
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: AuthUser): Promise<void> {
     const comment = await this.prisma.comment.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, authorId: true },
     });
-    if (!comment)
-      throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (!comment) throw new NotFoundException(`Comment with id "${id}" not found`);
+    if (actor.role === UserRole.EDITOR && comment.authorId !== actor.userId) {
+      throw new ForbiddenException('Insufficient permissions for this operation');
+    }
     await this.prisma.comment.delete({
       where: { id },
     });
@@ -67,7 +73,9 @@ export class CommentService {
   // via toISOString(), producing different format - "2026-04-10T12:34:56.789Z"
   // we use Pick<PrismaComment, union of fields' in order toResponse() work with potential partial selects
   // (queries with select/include combos). Function only requires/depends on this 5 specific fields only
-  private toResponse(comment: Pick<PrismaComment, 'id' | 'content' | "articleId" | 'authorId' | 'createdAt'>): Comment {
+  private toResponse(
+    comment: Pick<PrismaComment, 'id' | 'content' | 'articleId' | 'authorId' | 'createdAt'>,
+  ): Comment {
     return {
       id: comment.id,
       content: comment.content,

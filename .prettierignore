@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.next
+tmp
+*.log
+package-lock.json
+test

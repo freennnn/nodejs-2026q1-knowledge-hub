@@ -8,10 +8,7 @@ import {
   IsUUID,
   ValidateIf,
 } from 'class-validator';
-import {
-  ARTICLE_STATUS_VALUES,
-  ArticleStatus,
-} from '@/common/enums/article-status.enum';
+import { ARTICLE_STATUS_VALUES, ArticleStatus } from '@/common/enums/article-status.enum';
 
 export class CreateArticleDto {
   @ApiProperty({ example: 'Intro to Nest.js' })

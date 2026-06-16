@@ -40,13 +40,31 @@ Set image names once in `.env`:
 - `IMAGE_LOCAL_NAME` - local image tag for build/compose/scan (example: `knowledge-hub:local`)
 - `IMAGE_HUB_NAME` - Docker Hub tag for push (example: `freennnn/knowledge-hub:latest`)
 
-2. Build and run application + PostgreSQL:
+2. Start from a clean local database when needed:
+
+```
+docker compose down -v
+```
+
+This removes Compose containers and the PostgreSQL volume. Images are separate from volumes and are not removed by this command.
+
+3. Build and run application + PostgreSQL:
 
 ```
 docker compose up --build
 ```
 
-3. Optional Adminer UI (debug profile):
+This builds the local app image from the current source code, starts PostgreSQL, applies committed Prisma migrations with the `migrate` service, and then starts the app container.
+
+4. Optional seed data:
+
+Run this after `docker compose up --build` has applied migrations successfully. The seed script replaces demo data, so it is not run automatically on every app startup.
+
+```
+docker compose --profile seed run --rm seed
+```
+
+5. Optional Adminer UI (debug profile):
 
 ```
 docker compose --profile debug up --build
@@ -56,72 +74,35 @@ docker compose --profile debug up --build
 - Swagger: http://localhost:4000/doc
 - Adminer: http://localhost:8080 (debug profile only)
 
-## Prisma Database Workflow
+## Local App with Docker DB
 
-Typical dev flow (your setup):
+The DB container is the running PostgreSQL server process. The DB volume is where PostgreSQL stores data. The app needs the container to be running, and the container needs the volume to keep data between restarts.
 
-1. Start DB container:
+If you already ran the full Docker flow above, the DB is migrated and ready. To switch from the Docker app container to a local Nest process:
 
 ```
-docker compose up -d db
+docker compose stop app
+npm run start:dev
 ```
 
-2. Ensure local `DATABASE_URL` uses `localhost:5432`:
+Keep local `.env` pointed at `localhost`, because the local Node process connects through Docker's published port:
 
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/knowledge_hub?schema=public
 ```
 
-3. Run in repo:
-
-```
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-```
-
-This step is required on fresh install after DB startup, regardless of where the app runs (local Node process or app container).
-
-4. Start app:
-
-```
-npm run start:dev
-```
-
-If app runs inside Compose, then `DATABASE_URL` should use host `db` instead of `localhost`:
-
-```
-DATABASE_URL=postgresql://postgres:postgres@db:5432/knowledge_hub?schema=public
-```
-
-For production-like deployment, apply committed migrations with:
-
-```
-npx prisma migrate deploy
-```
-
-## Local Run + Tests (Quick Flow)
-
-1. Start PostgreSQL:
+You can also start only the DB container for local development:
 
 ```
 docker compose up -d db
-```
-
-2. Apply DB migrations (and optional seed):
-
-```
+npm run prisma:generate
 npx prisma migrate deploy
-npm run prisma:seed
-```
-
-3. Start app:
-
-```
 npm run start:dev
 ```
 
-4. Run tests in another terminal:
+With this DB-only flow, Prisma generation and migrations are manual because the Compose `migrate` service only runs during the full Compose app flow.
+
+Run tests in another terminal after the DB is migrated:
 
 ```
 npm run test

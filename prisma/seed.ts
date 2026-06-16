@@ -80,10 +80,7 @@ async function main() {
         authorId: admin.id,
         categoryId: categories[0].id,
         tags: {
-          connect: [
-            { id: tagsByName.get('cityhall')!.id },
-            { id: tagsByName.get('subway')!.id },
-          ],
+          connect: [{ id: tagsByName.get('cityhall')!.id }, { id: tagsByName.get('subway')!.id }],
         },
       },
     }),
@@ -110,10 +107,7 @@ async function main() {
         authorId: admin.id,
         categoryId: categories[2].id,
         tags: {
-          connect: [
-            { id: tagsByName.get('broadway')!.id },
-            { id: tagsByName.get('housing')!.id },
-          ],
+          connect: [{ id: tagsByName.get('broadway')!.id }, { id: tagsByName.get('housing')!.id }],
         },
       },
     }),
@@ -137,10 +131,7 @@ async function main() {
         authorId: admin.id,
         categoryId: categories[0].id,
         tags: {
-          connect: [
-            { id: tagsByName.get('broadway')!.id },
-            { id: tagsByName.get('subway')!.id },
-          ],
+          connect: [{ id: tagsByName.get('broadway')!.id }, { id: tagsByName.get('subway')!.id }],
         },
       },
     }),
